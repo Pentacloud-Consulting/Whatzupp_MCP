@@ -164,7 +164,7 @@ export class SalesCloudConnector implements Connector {
         }
 
         // Filter out test messages from automated unit test suite
-        msgs = msgs.filter(m => m.content && !m.content.includes('formatted phone') && !m.content.includes('Outbound from Sales Cloud'));
+        msgs = msgs.filter(m => m.content && !m.content.includes('formatted phone') && !m.content.includes('Outbound from Sales Cloud') && !m.content.includes('test inbound message'));
 
         msgs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
         const pageMsgs = msgs.slice(0, pageSize);
@@ -231,7 +231,7 @@ export class SalesCloudConnector implements Connector {
             return s.endsWith(last10) || r.endsWith(last10);
           });
         }
-        msgs = msgs.filter(m => m.content && !m.content.includes('formatted phone') && !m.content.includes('Outbound from Sales Cloud'));
+        msgs = msgs.filter(m => m.content && !m.content.includes('formatted phone') && !m.content.includes('Outbound from Sales Cloud') && !m.content.includes('test inbound message'));
         if (msgs.length > 0) {
           return { messages: msgs };
         }
@@ -243,7 +243,7 @@ export class SalesCloudConnector implements Connector {
       records.reverse();
 
       const messages: WorkspaceMessage[] = records
-        .filter((r: any) => r.Content__c && !r.Content__c.includes('formatted phone') && !r.Content__c.includes('Outbound from Sales Cloud'))
+        .filter((r: any) => r.Content__c && !r.Content__c.includes('formatted phone') && !r.Content__c.includes('Outbound from Sales Cloud') && !r.Content__c.includes('test inbound message'))
         .map((r: any) => ({
           id: r.Message_Id__c || r.Id,
           senderId: r.Direction__c === 'OUTBOUND' ? 'salescloud-system' : r.Phone__c,
