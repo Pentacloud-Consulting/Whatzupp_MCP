@@ -48,9 +48,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    fs.writeFileSync(envPath, envContent, 'utf8');
-    
-    console.log('[API] Dynamically updated WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID in .env.local');
+    try {
+      fs.writeFileSync(envPath, envContent, 'utf8');
+      console.log('[API] Dynamically updated WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID in .env.local');
+    } catch (fsError: any) {
+      console.warn('[API] Could not write to .env.local (likely read-only Vercel environment):', fsError.message);
+    }
     
     return NextResponse.json({ success: true, accessToken, phoneNumberId });
   } catch (error: any) {

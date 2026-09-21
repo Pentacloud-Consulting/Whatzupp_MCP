@@ -53,7 +53,7 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
           { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, X-Requested-With, bypass-tunnel-reminder, Bypass-Tunnel-Reminder, x-workspace-key, X-Workspace-Key, *' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, X-Requested-With, bypass-tunnel-reminder, Bypass-Tunnel-Reminder, x-workspace-key, X-Workspace-Key' },
         ],
       },
       {
