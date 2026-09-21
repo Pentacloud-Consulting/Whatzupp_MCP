@@ -107,14 +107,17 @@ export function useGlobalNotifications(
     }
   }, []);
 
-  // Connect to global SSE stream
+  // Connect to global SSE stream (limited reconnection — SSE only works same-process)
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
     let reconnectAttempts = 0;
+    const MAX_RECONNECTS = 3;
+    let gaveUp = false;
 
     const connect = () => {
+      if (gaveUp) return;
       eventSource = new EventSource(`/api/messages/stream/global?workspaceId=${workspaceId}`);
 
       eventSource.onopen = () => {
@@ -178,10 +181,15 @@ export function useGlobalNotifications(
 
       eventSource.onerror = () => {
         eventSource?.close();
-        // Exponential backoff: 1s, 2s, 4s, 8s, max 15s
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 15000);
         reconnectAttempts++;
-        console.warn(`[global-notifications] SSE error, reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
+        if (reconnectAttempts > MAX_RECONNECTS) {
+          gaveUp = true;
+          console.log(`[global-notifications] SSE unavailable after ${MAX_RECONNECTS} attempts. Notifications rely on polling.`);
+          return;
+        }
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 4000);
+        console.warn(`[global-notifications] SSE error, reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECTS})...`);
         reconnectTimer = setTimeout(connect, delay);
       };
     };

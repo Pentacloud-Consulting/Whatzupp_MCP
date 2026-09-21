@@ -83,30 +83,35 @@ export default function ListDetailsView({ listId, onBack, onEdit }: ListDetailsV
   // Resolve label objects for this list
   const listLabels = useMemo(() => {
     if (!currentList || !currentList.labelIds) return [];
-    return state.chatLabels.filter(l => currentList.labelIds.includes(l.id));
-  }, [currentList, state.chatLabels]);
+    const wsId = state.activeWorkspaceId || 'salescloud-ws-1';
+    const activeWorkspaceLabels = state.chatLabels.filter(l => !l.workspaceId || l.workspaceId === wsId);
+    return activeWorkspaceLabels.filter(l => currentList.labelIds.includes(l.id));
+  }, [currentList, state.chatLabels, state.activeWorkspaceId]);
 
   // Robust multi-source label matching helper
   const contactHasLabel = (contact: any, labelId: string, labelName: string): boolean => {
     const normName = labelName.toLowerCase().trim();
 
-    // 1. Check conversationLabels by contact.id, phoneNumber, or salesforceRecordId
-    const assignedById = state.conversationLabels[contact.id] || [];
-    const assignedByPhone = contact.phoneNumber ? (state.conversationLabels[contact.phoneNumber] || []) : [];
-    const assignedBySfId = contact.salesforceRecordId ? (state.conversationLabels[contact.salesforceRecordId] || []) : [];
+    const hasExplicitIdRecord = contact.id && state.conversationLabels[contact.id] !== undefined;
+    const hasExplicitPhoneRecord = contact.phoneNumber && state.conversationLabels[contact.phoneNumber] !== undefined;
+    const hasExplicitSfIdRecord = contact.salesforceRecordId && state.conversationLabels[contact.salesforceRecordId] !== undefined;
 
-    if (assignedById.includes(labelId) || assignedByPhone.includes(labelId) || assignedBySfId.includes(labelId)) {
-      return true;
+    // 1. If explicit local label tracking exists for this contact, state.conversationLabels is the source of truth
+    if (hasExplicitIdRecord || hasExplicitPhoneRecord || hasExplicitSfIdRecord) {
+      const assignedById = contact.id ? (state.conversationLabels[contact.id] || []) : [];
+      const assignedByPhone = contact.phoneNumber ? (state.conversationLabels[contact.phoneNumber] || []) : [];
+      const assignedBySfId = contact.salesforceRecordId ? (state.conversationLabels[contact.salesforceRecordId] || []) : [];
+      return assignedById.includes(labelId) || assignedByPhone.includes(labelId) || assignedBySfId.includes(labelId);
     }
 
-    // 2. Check contact.labels string (comma separated from Salesforce e.g. "Qualified, VIP")
+    // 2. Fallback for unmanaged contacts: Check contact.labels string (from Salesforce WhatZupp_Labels__c)
     const rawLabelsStr = contact.labels || contact.WhatZupp_Labels__c || '';
     if (rawLabelsStr && typeof rawLabelsStr === 'string') {
       const splitNames = rawLabelsStr.split(',').map(s => s.trim().toLowerCase());
       if (splitNames.includes(normName)) return true;
     }
 
-    // 3. Check contact.tags array (e.g. ["Qualified", "VIP"])
+    // 3. Fallback: Check contact.tags array (e.g. ["Qualified", "VIP"])
     if (Array.isArray(contact.tags)) {
       const normTags = contact.tags.map((t: string) => String(t).trim().toLowerCase());
       if (normTags.includes(normName)) return true;

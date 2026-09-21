@@ -74,23 +74,26 @@ export default function ListsView() {
   const contactHasLabel = (contact: any, labelId: string, labelName: string): boolean => {
     const normName = labelName.toLowerCase().trim();
 
-    // 1. Check conversationLabels by contact.id, phoneNumber, or salesforceRecordId
-    const assignedById = state.conversationLabels[contact.id] || [];
-    const assignedByPhone = contact.phoneNumber ? (state.conversationLabels[contact.phoneNumber] || []) : [];
-    const assignedBySfId = contact.salesforceRecordId ? (state.conversationLabels[contact.salesforceRecordId] || []) : [];
+    const hasExplicitIdRecord = contact.id && state.conversationLabels[contact.id] !== undefined;
+    const hasExplicitPhoneRecord = contact.phoneNumber && state.conversationLabels[contact.phoneNumber] !== undefined;
+    const hasExplicitSfIdRecord = contact.salesforceRecordId && state.conversationLabels[contact.salesforceRecordId] !== undefined;
 
-    if (assignedById.includes(labelId) || assignedByPhone.includes(labelId) || assignedBySfId.includes(labelId)) {
-      return true;
+    // 1. If explicit local label tracking exists for this contact, state.conversationLabels is the source of truth
+    if (hasExplicitIdRecord || hasExplicitPhoneRecord || hasExplicitSfIdRecord) {
+      const assignedById = contact.id ? (state.conversationLabels[contact.id] || []) : [];
+      const assignedByPhone = contact.phoneNumber ? (state.conversationLabels[contact.phoneNumber] || []) : [];
+      const assignedBySfId = contact.salesforceRecordId ? (state.conversationLabels[contact.salesforceRecordId] || []) : [];
+      return assignedById.includes(labelId) || assignedByPhone.includes(labelId) || assignedBySfId.includes(labelId);
     }
 
-    // 2. Check contact.labels string (comma separated from Salesforce e.g. "Qualified, VIP")
+    // 2. Fallback for unmanaged contacts: Check contact.labels string (from Salesforce WhatZupp_Labels__c)
     const rawLabelsStr = contact.labels || contact.WhatZupp_Labels__c || '';
     if (rawLabelsStr && typeof rawLabelsStr === 'string') {
       const splitNames = rawLabelsStr.split(',').map(s => s.trim().toLowerCase());
       if (splitNames.includes(normName)) return true;
     }
 
-    // 3. Check contact.tags array (e.g. ["Qualified", "VIP"])
+    // 3. Fallback: Check contact.tags array (e.g. ["Qualified", "VIP"])
     if (Array.isArray(contact.tags)) {
       const normTags = contact.tags.map((t: string) => String(t).trim().toLowerCase());
       if (normTags.includes(normName)) return true;
@@ -109,6 +112,11 @@ export default function ListsView() {
   const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]);
   const [matchType, setMatchType] = useState<'ANY' | 'ALL'>('ANY');
 
+  const activeWorkspaceLabels = useMemo(() => {
+    const wsId = state.activeWorkspaceId || 'salescloud-ws-1';
+    return state.chatLabels.filter(l => !l.workspaceId || l.workspaceId === wsId);
+  }, [state.chatLabels, state.activeWorkspaceId]);
+
   const handleOpenCreate = () => {
     setEditingList(null);
     setName('');
@@ -123,7 +131,8 @@ export default function ListsView() {
     setEditingList(list);
     setName(list.name);
     setDescription(list.description || '');
-    setSelectedLabelIds(list.labelIds || []);
+    const validLabelIds = (list.labelIds || []).filter(id => activeWorkspaceLabels.some(l => l.id === id));
+    setSelectedLabelIds(validLabelIds);
     setMatchType(list.matchType || 'ANY');
     setIsModalOpen(true);
   };
@@ -160,7 +169,7 @@ export default function ListsView() {
   const livePreviewCount = useMemo(() => {
     if (selectedLabelIds.length === 0) return 0;
 
-    const targetLabelObjs = state.chatLabels.filter(l => selectedLabelIds.includes(l.id));
+    const targetLabelObjs = activeWorkspaceLabels.filter(l => selectedLabelIds.includes(l.id));
 
     return allWorkspaceContacts.filter(contact => {
       if (matchType === 'ALL') {
@@ -169,13 +178,13 @@ export default function ListsView() {
         return targetLabelObjs.some(lObj => contactHasLabel(contact, lObj.id, lObj.name));
       }
     }).length;
-  }, [selectedLabelIds, matchType, allWorkspaceContacts, state.conversationLabels, state.chatLabels]);
+  }, [selectedLabelIds, matchType, allWorkspaceContacts, state.conversationLabels, activeWorkspaceLabels]);
 
   // Compute contacts count for each list in the dashboard grid
   const getListContactCount = (list: SavedList): number => {
     if (!list.labelIds || list.labelIds.length === 0) return 0;
 
-    const targetLabelObjs = state.chatLabels.filter(l => list.labelIds.includes(l.id));
+    const targetLabelObjs = activeWorkspaceLabels.filter(l => list.labelIds.includes(l.id));
     const type = list.matchType || 'ANY';
 
     return allWorkspaceContacts.filter(contact => {
@@ -195,7 +204,7 @@ export default function ListsView() {
 
     activeSavedLists.forEach(list => {
       if (!list.labelIds || list.labelIds.length === 0) return;
-      const targetLabelObjs = state.chatLabels.filter(l => list.labelIds.includes(l.id));
+      const targetLabelObjs = activeWorkspaceLabels.filter(l => list.labelIds.includes(l.id));
       const type = list.matchType || 'ANY';
 
       allWorkspaceContacts.forEach(contact => {
@@ -210,7 +219,7 @@ export default function ListsView() {
     });
 
     return matchedContactIds.size;
-  }, [activeSavedLists, allWorkspaceContacts, state.conversationLabels, state.chatLabels]);
+  }, [activeSavedLists, allWorkspaceContacts, state.conversationLabels, activeWorkspaceLabels]);
 
   const mostActiveList = useMemo(() => {
     if (activeSavedLists.length === 0) return 'None';
@@ -390,7 +399,7 @@ export default function ListsView() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {activeSavedLists.map(list => {
             const count = getListContactCount(list);
-            const listLabelObjs = state.chatLabels.filter(l => (list.labelIds || []).includes(l.id));
+            const listLabelObjs = activeWorkspaceLabels.filter(l => (list.labelIds || []).includes(l.id));
 
             return (
               <motion.div
@@ -571,10 +580,10 @@ export default function ListsView() {
                   </label>
                   
                   <div className="max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 rounded-2xl p-2.5 space-y-1.5 scrollbar-thin">
-                    {state.chatLabels.length === 0 ? (
+                    {activeWorkspaceLabels.length === 0 ? (
                       <p className="text-xs text-slate-400 p-2 font-medium">No labels available in this workspace yet.</p>
                     ) : (
-                      state.chatLabels.map(label => {
+                      activeWorkspaceLabels.map(label => {
                         const isChecked = selectedLabelIds.includes(label.id);
                         const hex = LABEL_COLORS[label.color as LabelColor] || '#00C853';
 

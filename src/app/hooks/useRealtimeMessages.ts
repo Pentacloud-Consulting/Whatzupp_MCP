@@ -50,14 +50,18 @@ export function useRealtimeMessages(selectedContact: Contact | null, workspaceId
       }
     };
 
-    // Create an EventSource for real-time updates with automatic reconnection
+    // Create an EventSource for real-time updates with LIMITED reconnection
+    // SSE only works when webhook and browser are in the same process (local dev only).
+    // On Vercel-deployed webhooks, SSE won't deliver messages — polling is the primary mechanism.
     let eventSource: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let reconnectAttempts = 0;
+    const MAX_SSE_RECONNECTS = 3; // Stop after 3 failures to avoid console spam
     let isCancelled = false;
+    let sseGaveUp = false;
 
     const connectSSE = () => {
-      if (isCancelled) return;
+      if (isCancelled || sseGaveUp) return;
 
       eventSource = new EventSource(`/api/messages/stream?phoneNumber=${normalizedPhone}&workspaceId=${workspaceId}`);
 
@@ -91,15 +95,23 @@ export function useRealtimeMessages(selectedContact: Contact | null, workspaceId
         if (isCancelled) return;
         eventSource?.close();
 
-        // Exponential backoff: 1s, 2s, 4s, 8s, max 15s
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 15000);
         reconnectAttempts++;
-        console.warn(`[useRealtimeMessages] SSE error for ${normalizedPhone}, reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
+        if (reconnectAttempts > MAX_SSE_RECONNECTS) {
+          // Stop trying SSE — polling will handle message delivery
+          sseGaveUp = true;
+          console.log(`[useRealtimeMessages] SSE unavailable for ${normalizedPhone} after ${MAX_SSE_RECONNECTS} attempts. Relying on polling.`);
+          return;
+        }
+
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 4000);
+        console.warn(`[useRealtimeMessages] SSE error for ${normalizedPhone}, reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_SSE_RECONNECTS})...`);
         reconnectTimer = setTimeout(connectSSE, delay);
       };
     };
 
-    // Polling fallback: Next.js in-memory SSE often drops events between workers
+    // Polling fallback: PRIMARY mechanism for receiving messages when webhook runs on Vercel.
+    // Polls Salesforce/SFMC directly for new messages.
     const pollMessages = async () => {
       if (isCancelled) return;
       try {
@@ -146,7 +158,8 @@ export function useRealtimeMessages(selectedContact: Contact | null, workspaceId
       }
     };
 
-    let pollInterval = setInterval(pollMessages, 5000);
+    // Poll every 3 seconds (primary mechanism for received messages)
+    let pollInterval = setInterval(pollMessages, 3000);
 
     fetchMessages();
     connectSSE();
@@ -157,7 +170,7 @@ export function useRealtimeMessages(selectedContact: Contact | null, workspaceId
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (pollInterval) clearInterval(pollInterval);
     };
-  }, [selectedContact]);
+  }, [selectedContact, workspaceId]);
 
   return { messages, phoneNumber: currentPhoneRef.current };
 }

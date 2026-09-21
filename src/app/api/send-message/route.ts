@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { writeSentMessage } from '@/lib/sfmcDE';
 import { normalizePhoneNumber } from '@/utils/phone';
+import { resolveAppUrl } from '@/lib/realtime';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
         });
 
         // Broadcast SSE for real-time UI updates
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        const appUrl = resolveAppUrl();
         const sentMessageData = {
           id: result.messageId,
           localId,
@@ -217,7 +218,7 @@ export async function POST(request: Request) {
         }
       }
 
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const appUrl = resolveAppUrl();
 
       // Broadcast via SSE for real-time UI updates
       // Per-phone SSE stream (updates the active chat window)

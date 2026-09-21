@@ -408,42 +408,75 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const addChatLabel = useCallback(async (label: Omit<ChatLabel, 'id' | 'createdAt'>) => {
     const newLabel: ChatLabel = {
       ...label,
+      workspaceId: label.workspaceId || state.activeWorkspaceId || 'salescloud-ws-1',
       id: `label-${Date.now()}`,
       createdAt: new Date().toISOString()
     };
-    setState(prev => ({ ...prev, chatLabels: [...prev.chatLabels, newLabel] }));
+    setState(prev => {
+      const updated = [...prev.chatLabels, newLabel];
+      if (typeof window !== 'undefined') {
+        try { localStorage.setItem('wz_cached_chat_labels', JSON.stringify(updated)); } catch(e) {}
+      }
+      return { ...prev, chatLabels: updated };
+    });
     return newLabel;
-  }, []);
+  }, [state.activeWorkspaceId]);
 
   const updateChatLabel = useCallback(async (id: string, updates: Partial<ChatLabel>) => {
-    setState(prev => ({
-      ...prev,
-      chatLabels: prev.chatLabels.map(l => l.id === id ? { ...l, ...updates } : l)
-    }));
+    setState(prev => {
+      const updated = prev.chatLabels.map(l => l.id === id ? { ...l, ...updates } : l);
+      if (typeof window !== 'undefined') {
+        try { localStorage.setItem('wz_cached_chat_labels', JSON.stringify(updated)); } catch(e) {}
+      }
+      return { ...prev, chatLabels: updated };
+    });
   }, []);
 
   const deleteChatLabel = useCallback(async (id: string) => {
-    setState(prev => ({
-      ...prev,
-      chatLabels: prev.chatLabels.filter(l => l.id !== id),
-      // Clean up conversationLabels containing this id
-      conversationLabels: Object.fromEntries(
+    setState(prev => {
+      const deletedLabelObj = prev.chatLabels.find(l => l.id === id);
+      const deletedNameNorm = deletedLabelObj ? deletedLabelObj.name.toLowerCase().trim() : null;
+
+      const updatedLabels = prev.chatLabels.filter(l => l.id !== id);
+      const updatedConvLabels = Object.fromEntries(
         Object.entries(prev.conversationLabels).map(([convId, labels]) => [
           convId,
-          labels.filter(l => l !== id)
+          labels.filter(l => l !== id && (deletedNameNorm ? l.toLowerCase().trim() !== deletedNameNorm : true))
         ])
-      )
-    }));
+      );
+      const updatedSavedLists = prev.savedLists.map(list => ({
+        ...list,
+        labelIds: (list.labelIds || []).filter(lId => lId !== id && (deletedNameNorm ? lId.toLowerCase().trim() !== deletedNameNorm : true))
+      }));
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('wz_cached_chat_labels', JSON.stringify(updatedLabels));
+          localStorage.setItem('wz_cached_conversation_labels', JSON.stringify(updatedConvLabels));
+          localStorage.setItem('wz_cached_saved_lists', JSON.stringify(updatedSavedLists));
+        } catch(e) {}
+      }
+
+      return {
+        ...prev,
+        chatLabels: updatedLabels,
+        conversationLabels: updatedConvLabels,
+        savedLists: updatedSavedLists
+      };
+    });
   }, []);
 
   const setConversationLabels = useCallback(async (conversationId: string, labelIds: string[]) => {
-    setState(prev => ({
-      ...prev,
-      conversationLabels: {
+    setState(prev => {
+      const updatedConvLabels = {
         ...prev.conversationLabels,
         [conversationId]: labelIds
+      };
+      if (typeof window !== 'undefined') {
+        try { localStorage.setItem('wz_cached_conversation_labels', JSON.stringify(updatedConvLabels)); } catch(e) {}
       }
-    }));
+      return { ...prev, conversationLabels: updatedConvLabels };
+    });
   }, []);
 
   // Saved Lists Management

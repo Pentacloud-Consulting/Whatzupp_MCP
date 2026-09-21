@@ -21,7 +21,11 @@ export async function GET() {
             const trimmed = line.trim();
             if (trimmed.startsWith('#') || !trimmed.includes('=')) continue;
             const [key, ...rest] = trimmed.split('=');
-            const val = rest.join('=').trim();
+            let val = rest.join('=').trim();
+            // Strip surrounding double quotes if present (e.g., WHATSAPP_ACCESS_TOKEN="EAG...")
+            if (val.startsWith('"') && val.endsWith('"')) {
+              val = val.slice(1, -1);
+            }
             if (key === 'WHATSAPP_ACCESS_TOKEN') accessToken = val;
             if (key === 'WHATSAPP_PHONE_NUMBER_ID') phoneNumberId = val;
             if (key === 'WHATSAPP_VERIFY_TOKEN') verificationToken = val;
