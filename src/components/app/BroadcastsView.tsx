@@ -155,25 +155,43 @@ export default function BroadcastsView() {
     setSendError(null);
 
     try {
-      const contacts = phoneList.map(phone => ({
-        phone,
-        templateName: selectedTemplate.name,
-        language: selectedTemplate.language,
-      }));
+      const results: BroadcastResult['results'] = [];
+      let successCount = 0;
+      let failedCount = 0;
 
-      const response = await fetch('/api/send-bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contacts }),
+      // Send requests in parallel (max 50)
+      const promises = phoneList.map(async (phone) => {
+        try {
+          const res = await fetch('/api/send-whatsapp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phone,
+              templateName: selectedTemplate.name,
+              language: selectedTemplate.language,
+              workspaceId: activeWorkspace?.id || 'salescloud-ws-1'
+            })
+          });
+          
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          
+          results.push({ phone, success: true, wamid: data.wamid });
+          successCount++;
+        } catch (err: any) {
+          results.push({ phone, success: false, error: err.message, wamid: null });
+          failedCount++;
+        }
       });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `HTTP ${response.status}`);
-      }
+      await Promise.all(promises);
 
-      const data = await response.json();
-      setResult(data);
+      setResult({
+        total: phoneList.length,
+        success: successCount,
+        failed: failedCount,
+        results
+      });
     } catch (err: any) {
       setSendError(err.message || 'Failed to send broadcast');
     } finally {
