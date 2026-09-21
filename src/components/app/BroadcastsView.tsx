@@ -434,6 +434,7 @@ export default function BroadcastsView() {
                     return (
                       <label
                         key={contact.id}
+                        onClick={() => toggleContact(contact.id)}
                         className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors
                           ${isChecked ? 'bg-[#25D366]/[0.03]' : 'hover:bg-gray-50'}
                         `}
