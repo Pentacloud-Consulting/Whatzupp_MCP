@@ -646,7 +646,21 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                             )}
 
                             {/* ─── Media & Attachment Card (PDF / Image / File) ─── */}
-                            {(isDocument || isImage || isVideo) && (
+                            {isImage ? (
+                              <div className="mb-2 overflow-hidden rounded-xl bg-gray-100 max-w-[280px] sm:max-w-[320px] shadow-sm">
+                                <img 
+                                  src={mediaSrc || fallbackImgSrc} 
+                                  alt={displayFileName} 
+                                  className="w-full h-auto object-cover"
+                                />
+                                <div className="bg-white/80 backdrop-blur-sm p-2 text-[11px] font-semibold text-gray-500 flex items-center justify-between border-t border-gray-100">
+                                  <span className="truncate mr-2">{displayFileName}</span>
+                                  <a href={mediaSrc || fallbackImgSrc} download target="_blank" rel="noreferrer" className="text-[#25D366] hover:text-emerald-700 p-1 bg-emerald-50 rounded-full">
+                                    <Download size={14} />
+                                  </a>
+                                </div>
+                              </div>
+                            ) : (isDocument || isVideo) ? (
                               <div className="bg-white rounded-[24px] border border-slate-100 shadow-[0_4px_16px_rgba(15,23,42,0.04)] p-3.5 flex items-center justify-between gap-3.5 min-w-[280px] sm:min-w-[320px] my-1">
                                 <div className="flex items-center gap-3.5 min-w-0">
                                   <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 text-xl font-bold shadow-2xs ${
@@ -674,7 +688,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                                   <Download size={16} />
                                 </a>
                               </div>
-                            )}
+                            ) : null}
 
                             {/* ─── Text Content ─── */}
                             {(!isImage && !isVideo && !isDocument && !isAudio) ? (
