@@ -5,6 +5,7 @@ import EmojiPicker from 'emoji-picker-react';
 import { Contact, Message, MessageStatus } from '@/types';
 import { useWorkspace } from '@/components/workspace/WorkspaceProvider';
 import { LABEL_COLORS } from '@/types/workspace';
+import MediaPreviewModal from '@/components/media/MediaPreviewModal';
 
 interface ChatWindowProps {
   contact: Contact;
@@ -98,6 +99,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   const [showEmoji, setShowEmoji] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showFastReplies, setShowFastReplies] = useState(false);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -181,9 +183,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     setShowFastReplies(false);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setPreviewFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleConfirmUpload = async (file: File, caption: string) => {
     try {
       setIsUploading(true);
       setShowEmoji(false);
@@ -215,15 +222,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       else if (file.type.startsWith('video/')) mediaType = 'video';
       else if (file.type.startsWith('audio/')) mediaType = 'audio';
       
-      onSendMessage(newMessage.trim() || '', { mediaId: data.id, mediaType, mimeType: file.type, filename: file.name });
-      setNewMessage('');
+      onSendMessage(caption || '', { mediaId: data.id, mediaType, mimeType: file.type, filename: file.name });
       setReplyingTo(null);
     } catch (err: any) {
       console.error('File Upload Error:', err);
-      alert('Failed to upload file: ' + err.message);
+      throw err; // Re-throw to be caught by the modal
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -908,6 +913,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           {newMessage.trim() || isUploading ? <Send size={18} className="ml-0.5" /> : <Mic size={20} />}
         </motion.button>
       </div>
+
+      {/* Media Preview Composer */}
+      {previewFile && (
+        <MediaPreviewModal 
+          file={previewFile}
+          onClose={() => setPreviewFile(null)}
+          onSend={handleConfirmUpload}
+        />
+      )}
     </div>
   );
 };
