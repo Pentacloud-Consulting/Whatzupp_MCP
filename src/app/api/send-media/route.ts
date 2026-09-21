@@ -13,13 +13,15 @@ export async function POST(req: Request) {
     const phone = formData.get('phone') as string;
     const caption = formData.get('caption') as string || '';
     const workspaceId = formData.get('workspaceId') as string || 'salescloud-ws-1';
+    const formAccessToken = formData.get('accessToken') as string;
+    const formPhoneNumberId = formData.get('phoneNumberId') as string;
 
     if (!file || !phone) {
       return NextResponse.json({ error: 'Missing file or phone number' }, { status: 400 });
     }
 
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || '';
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || '';
+    const accessToken = formAccessToken || process.env.WHATSAPP_ACCESS_TOKEN || '';
+    const phoneNumberId = formPhoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
     const cleanPhone = phone.replace(/^\+/, '').trim();
     let mediaType = 'document';
     if (file.type.startsWith('image/')) mediaType = 'image';

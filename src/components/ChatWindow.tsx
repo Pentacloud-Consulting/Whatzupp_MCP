@@ -13,6 +13,8 @@ interface ChatWindowProps {
   onSendMessage: (content: string, options?: { mediaId?: string; mediaType?: string; mimeType?: string; filename?: string }) => void;
   onSimulateIncoming: () => void;
   onCloseChat: () => void;
+  accessToken?: string;
+  phoneNumberId?: string;
 }
 
 const formatMessageTime = (timestamp: string | number | Date) => {
@@ -94,6 +96,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   onSendMessage,
   onSimulateIncoming,
   onCloseChat,
+  accessToken,
+  phoneNumberId,
 }) => {
   const [newMessage, setNewMessage] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
@@ -200,6 +204,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       formData.append('phone', contact.phoneNumber);
       formData.append('caption', caption);
       formData.append('workspaceId', state.activeWorkspaceId || 'salescloud-ws-1');
+      if (accessToken) formData.append('accessToken', accessToken);
+      if (phoneNumberId) formData.append('phoneNumberId', phoneNumberId);
 
       const res = await fetch('/api/send-media', {
         method: 'POST',

@@ -517,6 +517,8 @@ export default function ChatsView() {
               onSendMessage={sendMessage}
               onSimulateIncoming={() => simulateIncomingMessage(selectedContact, 'This is a test reply')}
               onCloseChat={() => setSelectedContact(null)}
+              accessToken={config.accessToken}
+              phoneNumberId={config.phoneNumberId}
             />
 
             {/* ⚡ Fast Reply Floating Action Button */}
