@@ -125,9 +125,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // ----- Env Vars -----
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    // ----- Env Vars (with header override for LWC-provided tokens) -----
+    const headerToken = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.substring(7).trim() : null;
+    const accessToken = headerToken || (body.accessToken as string) || process.env.WHATSAPP_ACCESS_TOKEN;
+    const phoneNumberId = (body.phoneNumberId as string) || process.env.WHATSAPP_PHONE_NUMBER_ID;
 
     if (!accessToken || !phoneNumberId) {
       console.error('[send-whatsapp] Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID');
