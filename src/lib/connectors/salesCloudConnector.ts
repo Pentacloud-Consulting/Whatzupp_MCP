@@ -196,7 +196,7 @@ export class SalesCloudConnector implements Connector {
       }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-      const soql = `SELECT Id, Message_Id__c, Phone__c, Content__c, Direction__c, Status__c, Timestamp__c, Lead__c, Contact__c FROM WhatsApp_Message__c ${whereClause} ORDER BY Timestamp__c DESC LIMIT ${pageSize}`;
+      const soql = `SELECT Id, Message_Id__c, Phone__c, Content__c, Direction__c, Status__c, Timestamp__c, Lead__c, Contact__c, Media_Type__c, Media_File_Name__c, Media_Size__c, ContentVersionId__c, MetaMediaId__c FROM WhatsApp_Message__c ${whereClause} ORDER BY Timestamp__c DESC LIMIT ${pageSize}`;
 
       const queryUrl = `${instance_url}/services/data/v59.0/query?q=${encodeURIComponent(soql)}`;
       let res = await fetch(queryUrl, {
@@ -244,16 +244,24 @@ export class SalesCloudConnector implements Connector {
 
       const messages: WorkspaceMessage[] = records
         .filter((r: any) => r.Content__c && !r.Content__c.includes('formatted phone') && !r.Content__c.includes('Outbound from Sales Cloud') && !r.Content__c.includes('test inbound message'))
-        .map((r: any) => ({
-          id: r.Message_Id__c || r.Id,
-          senderId: r.Direction__c === 'OUTBOUND' ? 'salescloud-system' : r.Phone__c,
-          recipientId: r.Direction__c === 'OUTBOUND' ? r.Phone__c : 'salescloud-system',
-          content: r.Content__c || '',
-          timestamp: r.Timestamp__c || new Date().toISOString(),
-          status: (r.Status__c || 'SENT').toUpperCase(),
-          direction: (r.Direction__c || 'INBOUND').toUpperCase() as 'INBOUND' | 'OUTBOUND',
-          salesforceRecordId: r.Contact__c || r.Lead__c,
-        }));
+        .map((r: any) => {
+          const wamid = r.Message_Id__c || r.Id;
+          const hasMedia = !!r.Media_Type__c;
+          return {
+            id: wamid,
+            senderId: r.Direction__c === 'OUTBOUND' ? 'salescloud-system' : r.Phone__c,
+            recipientId: r.Direction__c === 'OUTBOUND' ? r.Phone__c : 'salescloud-system',
+            content: r.Content__c,
+            timestamp: r.Timestamp__c,
+            status: (r.Status__c?.toUpperCase() || 'SENT') as any,
+            direction: r.Direction__c?.toUpperCase() as any,
+            salesforceRecordId: r.Contact__c || r.Lead__c,
+            mediaType: r.Media_Type__c,
+            filename: r.Media_File_Name__c,
+            mediaId: r.MetaMediaId__c,
+            mediaUrl: hasMedia ? `/api/media/preview?messageId=${wamid}` : undefined
+          };
+        });
 
       return { messages, nextCursor };
     } catch (err) {
@@ -424,6 +432,7 @@ export class SalesCloudConnector implements Connector {
       }
 
       // Emit real-time SSE update to UI
+      const hasMedia = !!params.mediaType;
       emitRealtimeMessage(cleanPhone, {
         id: wamid,
         content: params.content,
@@ -431,6 +440,10 @@ export class SalesCloudConnector implements Connector {
         sender: 'user',
         status: (params.status || 'SENT').toUpperCase(),
         recipientId: cleanPhone,
+        mediaType: params.mediaType,
+        filename: params.mediaFileName,
+        mediaId: params.metaMediaId,
+        mediaUrl: hasMedia ? `/api/media/preview?messageId=${wamid}` : undefined
       }, 'salescloud-ws-1').catch(e => console.warn('[SalesCloudConnector] Realtime emit error:', e));
 
       // Set conversation ownership (Centralized Choke Point for Sales Cloud)
