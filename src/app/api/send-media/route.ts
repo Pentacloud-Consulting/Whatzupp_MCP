@@ -5,7 +5,6 @@ import { sendWhatsAppMessage } from '@/services/whatsappService';
 import { SalesCloudConnector } from '@/lib/connectors/salesCloudConnector';
 import { writeSentMessage } from '@/lib/sfmcDE';
 import { setConversationOwner } from '@/lib/storage/kvStore';
-import { getAppEnvVariables } from '@/utils/envVariables';
 
 export async function POST(req: Request) {
   try {
@@ -19,7 +18,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing file or phone number' }, { status: 400 });
     }
 
-    const { accessToken, phoneNumberId } = await getAppEnvVariables();
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || '';
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || '';
     const cleanPhone = phone.replace(/^\+/, '').trim();
     let mediaType = 'document';
     if (file.type.startsWith('image/')) mediaType = 'image';
