@@ -56,7 +56,10 @@ export async function GET(request: NextRequest) {
         })
       : allWorkspaces;
 
-    const allContacts = [...scContacts, ...sfmcContacts];
+    const scContactsWithWs = scContacts.map((c: any) => ({ ...c, workspaceId: 'salescloud-ws-1' }));
+    const sfmcContactsWithWs = sfmcContacts.map((c: any) => ({ ...c, workspaceId: 'sfmc-ws-1' }));
+    
+    const allContacts = [...scContactsWithWs, ...sfmcContactsWithWs];
 
     return NextResponse.json({
       success: true,

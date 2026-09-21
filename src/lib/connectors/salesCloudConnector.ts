@@ -289,6 +289,11 @@ export class SalesCloudConnector implements Connector {
       filename: params.filename,
     });
 
+    if (!waResult.success) {
+      console.error('[SalesCloudConnector] sendWhatsAppMessage failed:', waResult.error);
+      throw new Error(waResult.error || 'Failed to send WhatsApp message to Meta');
+    }
+
     const wamid = waResult.messageId || `wamid.sc.${Date.now()}`;
 
     const formattedContent = params.mediaId
