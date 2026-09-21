@@ -22,6 +22,10 @@ interface SentMessageRow {
   JourneyName?: string;
   Source?: string;
   Logs?: string;
+  AssetId?: string;
+  AssetCustomerKey?: string;
+  MetaMediaId?: string;
+  MediaType?: string;
 }
 
 interface ReceivedMessageRow {
@@ -30,8 +34,11 @@ interface ReceivedMessageRow {
   ContactName?: string;
   MessageType?: string;
   MessageContent?: string;
-  MediaUrl?: string;
+  MediaUrl?: string; // deprecated, use permanent identifiers
   ReceivedTime: string;
+  AssetId?: string;
+  AssetCustomerKey?: string;
+  MetaMediaId?: string;
 }
 
 interface StatusUpdateRow {
@@ -123,6 +130,10 @@ export async function writeSentMessage(row: SentMessageRow): Promise<void> {
   if (row.FailedReason) values.FailedReason = row.FailedReason;
   if (row.JourneyName) values.JourneyName = row.JourneyName;
   if (row.Source) values.Source = row.Source;
+  if (row.AssetId) values.AssetId = row.AssetId;
+  if (row.AssetCustomerKey) values.AssetCustomerKey = row.AssetCustomerKey;
+  if (row.MetaMediaId) values.MetaMediaId = row.MetaMediaId;
+  if (row.MediaType) values.MediaType = row.MediaType;
   
   // Set summary log
   values.Logs = row.Status === 'failed' ? 'Failed' : 'Success';
@@ -143,6 +154,9 @@ export async function writeReceivedMessage(row: ReceivedMessageRow): Promise<voi
   if (row.MessageType) values.MessageType = row.MessageType;
   if (row.MessageContent) values.MessageContent = row.MessageContent;
   if (row.MediaUrl) values.MediaUrl = row.MediaUrl;
+  if (row.AssetId) values.AssetId = row.AssetId;
+  if (row.AssetCustomerKey) values.AssetCustomerKey = row.AssetCustomerKey;
+  if (row.MetaMediaId) values.MetaMediaId = row.MetaMediaId;
   values.ReceivedTime = row.ReceivedTime;
 
   await upsertDeRow('WhatsApp_Received_Messages', keys, values);

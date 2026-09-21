@@ -194,35 +194,23 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     try {
       setIsUploading(true);
       setShowEmoji(false);
-      const envRes = await fetch('/api/get-env-variables');
-      const envData = await envRes.json();
-      if (!envRes.ok) throw new Error('Could not get tokens for upload');
-      const metaFormData = new FormData();
-      metaFormData.append('messaging_product', 'whatsapp');
-      metaFormData.append('file', file);
       
-      const metaUrl = `https://graph.facebook.com/v22.0/${envData.phoneNumberId}/media`;
-      const res = await fetch(metaUrl, {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('phone', contact.phoneNumber);
+      formData.append('caption', caption);
+      formData.append('workspaceId', state.activeWorkspaceId || 'salescloud-ws-1');
+
+      const res = await fetch('/api/send-media', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${envData.accessToken}` },
-        body: metaFormData
+        body: formData
       });
       
       const data = await res.json();
       if (!res.ok) {
-        const isExpiredToken = data?.error?.code === 190 || data?.error?.type === 'OAuthException';
-        const errorMsg = isExpiredToken
-          ? 'Meta Session Expired: Your Meta Access Token has expired. Please click ⚙️ Settings and update your fresh Meta Access Token.'
-          : data?.error?.message || 'Failed to upload media to Meta';
-        throw new Error(errorMsg);
+        throw new Error(data.error || 'Failed to upload and send media');
       }
       
-      let mediaType = 'document';
-      if (file.type.startsWith('image/')) mediaType = 'image';
-      else if (file.type.startsWith('video/')) mediaType = 'video';
-      else if (file.type.startsWith('audio/')) mediaType = 'audio';
-      
-      onSendMessage(caption || '', { mediaId: data.id, mediaType, mimeType: file.type, filename: file.name });
       setReplyingTo(null);
     } catch (err: any) {
       console.error('File Upload Error:', err);
@@ -590,9 +578,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                 const isVideo = isVideoAttachment;
                 const isDocument = isDocAttachment;
                 const isAudio = message.mediaType === 'audio';
+                const hasMediaTag = isImage || isVideo || isDocument || isAudio;
 
-                const mediaSrc = message.mediaUrl || (extractedMediaId ? `/api/media?mediaId=${extractedMediaId}` : null);
-                const fallbackImgSrc = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
+                const mediaSrc = message.mediaUrl || (hasMediaTag ? `/api/media/preview?messageId=${message.id}` : null);
+                const fallbackImgSrc = mediaSrc || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
                 const fallbackVideoPoster = 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800&auto=format&fit=crop&q=80';
                 
                 // Clean display text by stripping technical tags

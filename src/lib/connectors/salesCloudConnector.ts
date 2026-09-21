@@ -326,6 +326,12 @@ export class SalesCloudConnector implements Connector {
     salesforceRecordId?: string;
     salesforceObjectType?: string;
     status?: string;
+    mediaType?: string;
+    mediaFileName?: string;
+    mediaSize?: number;
+    contentDocumentId?: string;
+    contentVersionId?: string;
+    metaMediaId?: string;
   }): Promise<{ success: boolean; messageId: string }> {
     const wamid = params.messageId;
     const timestamp = params.timestamp || new Date().toISOString();
@@ -366,6 +372,12 @@ export class SalesCloudConnector implements Connector {
 
         if (leadId) payload.Lead__c = leadId;
         if (contactId) payload.Contact__c = contactId;
+        if (params.mediaType) payload.Media_Type__c = params.mediaType;
+        if (params.mediaFileName) payload.Media_File_Name__c = params.mediaFileName;
+        if (params.mediaSize) payload.Media_Size__c = params.mediaSize;
+        if (params.contentDocumentId) payload.ContentDocumentId__c = params.contentDocumentId;
+        if (params.contentVersionId) payload.ContentVersionId__c = params.contentVersionId;
+        if (params.metaMediaId) payload.MetaMediaId__c = params.metaMediaId;
 
         const upsertUrl = `${instance_url}/services/data/v59.0/sobjects/WhatsApp_Message__c/Message_Id__c/${encodeURIComponent(wamid)}`;
         const res = await fetch(upsertUrl, {
@@ -439,7 +451,21 @@ export class SalesCloudConnector implements Connector {
    * Idempotently saves an INBOUND message to Salesforce WhatsApp_Message__c object.
    */
   async saveInboundMessage(
-    arg1: string | { messageId?: string; senderPhone?: string; phone?: string; content?: string; timestamp?: string; leadId?: string; contactId?: string },
+    arg1: string | { 
+      messageId?: string; 
+      senderPhone?: string; 
+      phone?: string; 
+      content?: string; 
+      timestamp?: string; 
+      leadId?: string; 
+      contactId?: string;
+      mediaType?: string;
+      mediaFileName?: string;
+      mediaSize?: number;
+      contentDocumentId?: string;
+      contentVersionId?: string;
+      metaMediaId?: string;
+    },
     arg2?: { messageId?: string; content?: string; timestamp?: string; leadId?: string; contactId?: string }
   ): Promise<{ success: boolean; messageId: string }> {
     let senderPhone = '';
@@ -448,6 +474,12 @@ export class SalesCloudConnector implements Connector {
     let timestamp: string | undefined;
     let leadId: string | undefined;
     let contactId: string | undefined;
+    let mediaType: string | undefined;
+    let mediaFileName: string | undefined;
+    let mediaSize: number | undefined;
+    let contentDocumentId: string | undefined;
+    let contentVersionId: string | undefined;
+    let metaMediaId: string | undefined;
 
     if (typeof arg1 === 'string') {
       senderPhone = arg1;
@@ -463,6 +495,12 @@ export class SalesCloudConnector implements Connector {
       timestamp = arg1.timestamp;
       leadId = arg1.leadId;
       contactId = arg1.contactId;
+      mediaType = arg1.mediaType;
+      mediaFileName = arg1.mediaFileName;
+      mediaSize = arg1.mediaSize;
+      contentDocumentId = arg1.contentDocumentId;
+      contentVersionId = arg1.contentVersionId;
+      metaMediaId = arg1.metaMediaId;
     }
 
     if (!senderPhone) {
@@ -488,6 +526,12 @@ export class SalesCloudConnector implements Connector {
 
         if (leadId) payload.Lead__c = leadId;
         if (contactId) payload.Contact__c = contactId;
+        if (mediaType) payload.Media_Type__c = mediaType;
+        if (mediaFileName) payload.Media_File_Name__c = mediaFileName;
+        if (mediaSize) payload.Media_Size__c = mediaSize;
+        if (contentDocumentId) payload.ContentDocumentId__c = contentDocumentId;
+        if (contentVersionId) payload.ContentVersionId__c = contentVersionId;
+        if (metaMediaId) payload.MetaMediaId__c = metaMediaId;
 
         // Idempotent External ID Upsert via Salesforce REST API
         const upsertUrl = `${instance_url}/services/data/v59.0/sobjects/WhatsApp_Message__c/Message_Id__c/${encodeURIComponent(wamid)}`;
