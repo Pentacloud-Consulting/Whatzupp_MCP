@@ -154,8 +154,6 @@ export async function POST(req: Request) {
         recipientPhone: cleanPhone,
         content: caption || `[Media: ${mediaType}] ${fileName}`,
         mediaType,
-        mediaFileName: fileName,
-        mediaSize: fileSize,
         contentDocumentId,
         contentVersionId,
         metaMediaId
