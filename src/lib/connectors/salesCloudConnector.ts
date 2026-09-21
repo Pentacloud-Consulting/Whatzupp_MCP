@@ -196,7 +196,7 @@ export class SalesCloudConnector implements Connector {
       }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-      const soql = `SELECT Id, Message_Id__c, Phone__c, Content__c, Direction__c, Status__c, Timestamp__c, Lead__c, Contact__c, Media_Type__c, Media_File_Name__c, Media_Size__c, ContentVersionId__c, MetaMediaId__c FROM WhatsApp_Message__c ${whereClause} ORDER BY Timestamp__c DESC LIMIT ${pageSize}`;
+      const soql = `SELECT Id, Message_Id__c, Phone__c, Content__c, Direction__c, Status__c, Timestamp__c, Lead__c, Contact__c, Media_Type__c, ContentVersionId__c, MetaMediaId__c FROM WhatsApp_Message__c ${whereClause} ORDER BY Timestamp__c DESC LIMIT ${pageSize}`;
 
       const queryUrl = `${instance_url}/services/data/v59.0/query?q=${encodeURIComponent(soql)}`;
       let res = await fetch(queryUrl, {
@@ -329,21 +329,19 @@ export class SalesCloudConnector implements Connector {
     recipientPhone: string;
     content: string;
     timestamp?: string;
+    status?: string;
     leadId?: string;
     contactId?: string;
     salesforceRecordId?: string;
     salesforceObjectType?: string;
-    status?: string;
     mediaType?: string;
-    mediaFileName?: string;
-    mediaSize?: number;
     contentDocumentId?: string;
     contentVersionId?: string;
     metaMediaId?: string;
   }): Promise<{ success: boolean; messageId: string }> {
     const wamid = params.messageId;
     const timestamp = params.timestamp || new Date().toISOString();
-    const cleanPhone = params.recipientPhone.replace(/^\+/, '').trim();
+    const cleanPhone = normalizePhoneNumber(params.recipientPhone);
 
     try {
       // Resolve lead/contact ID if not passed directly
@@ -381,8 +379,6 @@ export class SalesCloudConnector implements Connector {
         if (leadId) payload.Lead__c = leadId;
         if (contactId) payload.Contact__c = contactId;
         if (params.mediaType) payload.Media_Type__c = params.mediaType;
-        if (params.mediaFileName) payload.Media_File_Name__c = params.mediaFileName;
-        if (params.mediaSize) payload.Media_Size__c = params.mediaSize;
         if (params.contentDocumentId) payload.ContentDocumentId__c = params.contentDocumentId;
         if (params.contentVersionId) payload.ContentVersionId__c = params.contentVersionId;
         if (params.metaMediaId) payload.MetaMediaId__c = params.metaMediaId;
@@ -441,7 +437,6 @@ export class SalesCloudConnector implements Connector {
         status: (params.status || 'SENT').toUpperCase(),
         recipientId: cleanPhone,
         mediaType: params.mediaType,
-        filename: params.mediaFileName,
         mediaId: params.metaMediaId,
         mediaUrl: hasMedia ? `/api/media/preview?messageId=${wamid}` : undefined
       }, 'salescloud-ws-1').catch(e => console.warn('[SalesCloudConnector] Realtime emit error:', e));
@@ -540,8 +535,6 @@ export class SalesCloudConnector implements Connector {
         if (leadId) payload.Lead__c = leadId;
         if (contactId) payload.Contact__c = contactId;
         if (mediaType) payload.Media_Type__c = mediaType;
-        if (mediaFileName) payload.Media_File_Name__c = mediaFileName;
-        if (mediaSize) payload.Media_Size__c = mediaSize;
         if (contentDocumentId) payload.ContentDocumentId__c = contentDocumentId;
         if (contentVersionId) payload.ContentVersionId__c = contentVersionId;
         if (metaMediaId) payload.MetaMediaId__c = metaMediaId;
