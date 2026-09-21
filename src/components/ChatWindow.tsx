@@ -190,17 +190,31 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       const envRes = await fetch('/api/get-env-variables');
       const envData = await envRes.json();
       if (!envRes.ok) throw new Error('Could not get tokens for upload');
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('accessToken', envData.accessToken);
-      formData.append('phoneNumberId', envData.phoneNumberId);
-      const res = await fetch('/api/media/upload', { method: 'POST', body: formData });
+      const metaFormData = new FormData();
+      metaFormData.append('messaging_product', 'whatsapp');
+      metaFormData.append('file', file);
+      
+      const metaUrl = `https://graph.facebook.com/v22.0/${envData.phoneNumberId}/media`;
+      const res = await fetch(metaUrl, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${envData.accessToken}` },
+        body: metaFormData
+      });
+      
       const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || 'Upload failed');
+      if (!res.ok) {
+        const isExpiredToken = data?.error?.code === 190 || data?.error?.type === 'OAuthException';
+        const errorMsg = isExpiredToken
+          ? 'Meta Session Expired: Your Meta Access Token has expired. Please click ⚙️ Settings and update your fresh Meta Access Token.'
+          : data?.error?.message || 'Failed to upload media to Meta';
+        throw new Error(errorMsg);
+      }
+      
       let mediaType = 'document';
       if (file.type.startsWith('image/')) mediaType = 'image';
       else if (file.type.startsWith('video/')) mediaType = 'video';
       else if (file.type.startsWith('audio/')) mediaType = 'audio';
+      
       onSendMessage(newMessage.trim() || '', { mediaId: data.id, mediaType, mimeType: file.type, filename: file.name });
       setNewMessage('');
       setReplyingTo(null);
