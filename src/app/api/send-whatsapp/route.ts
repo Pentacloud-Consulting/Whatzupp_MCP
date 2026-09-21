@@ -199,8 +199,9 @@ export async function POST(request: Request) {
     console.log(`[send-whatsapp] Message sent successfully. wamid: ${wamid}`);
 
     const normalizedPhone = formattedPhone.replace(/^\+/, '');
+    const messageText = (inArgs.messageText || body.messageText) as string | undefined;
     const paramText = Array.isArray(parameters) && parameters.length > 0 ? ` [Params: ${parameters.join(', ')}]` : '';
-    const bodyContent = `[Template: ${templateName}]${paramText}`;
+    const bodyContent = messageText ? `${messageText}${paramText}` : `[Template: ${templateName}]${paramText}`;
 
     // ----- STRICT WORKSPACE ISOLATION FOR TEMPLATE MESSAGES -----
     if (wamid) {

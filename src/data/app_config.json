@@ -1,7 +1,12 @@
 {
+  "conversation_owner:917019633010": {
+    "workspaceId": "salescloud-ws-1",
+    "updatedAt": "2026-09-21T08:16:30.337Z",
+    "assignedBy": "outbound"
+  },
   "conversation_owner:919952374972": {
     "workspaceId": "salescloud-ws-1",
-    "updatedAt": "2026-09-21T08:08:48.998Z",
+    "updatedAt": "2026-09-21T08:16:30.347Z",
     "assignedBy": "outbound"
   }
 }

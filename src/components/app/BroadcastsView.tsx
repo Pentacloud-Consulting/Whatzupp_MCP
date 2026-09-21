@@ -169,7 +169,8 @@ export default function BroadcastsView() {
               phone,
               templateName: selectedTemplate.name,
               language: selectedTemplate.language,
-              workspaceId: activeWorkspace?.id || 'salescloud-ws-1'
+              workspaceId: activeWorkspace?.id || 'salescloud-ws-1',
+              messageText: getComponentText(selectedTemplate, 'BODY')
             })
           });
           
