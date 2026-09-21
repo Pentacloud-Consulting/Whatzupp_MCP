@@ -661,18 +661,16 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 
                             {/* ─── Media & Attachment Card (PDF / Image / File) ─── */}
                             {isImage ? (
-                              <div className="mb-2 overflow-hidden rounded-xl bg-gray-100 max-w-[280px] sm:max-w-[320px] shadow-sm">
+                              <div className="relative mb-1 overflow-hidden rounded-[14px] bg-gray-100 max-w-[280px] sm:max-w-[320px] -mx-2 -mt-1">
                                 <img 
                                   src={mediaSrc || fallbackImgSrc} 
                                   alt={displayFileName} 
                                   className="w-full h-auto object-cover"
                                 />
-                                <div className="bg-white/80 backdrop-blur-sm p-2 text-[11px] font-semibold text-gray-500 flex items-center justify-between border-t border-gray-100">
-                                  <span className="truncate mr-2">{displayFileName}</span>
-                                  <a href={mediaSrc || fallbackImgSrc} download target="_blank" rel="noreferrer" className="text-[#25D366] hover:text-emerald-700 p-1 bg-emerald-50 rounded-full">
-                                    <Download size={14} />
-                                  </a>
-                                </div>
+                                <a href={mediaSrc || fallbackImgSrc} download target="_blank" rel="noreferrer" 
+                                   className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-black/40 text-white rounded-full hover:bg-black/60 backdrop-blur-md transition-colors shadow-sm">
+                                  <Download size={14} />
+                                </a>
                               </div>
                             ) : (isDocument || isVideo) ? (
                               <div className="bg-white rounded-[24px] border border-slate-100 shadow-[0_4px_16px_rgba(15,23,42,0.04)] p-3.5 flex items-center justify-between gap-3.5 min-w-[280px] sm:min-w-[320px] my-1">
@@ -709,11 +707,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                               <span className="text-[14px] font-medium leading-relaxed pr-[4.5rem] whitespace-pre-line text-slate-900">
                                 {cleanDisplayText || rawText}
                               </span>
-                            ) : cleanDisplayText ? (
+                            ) : (cleanDisplayText && cleanDisplayText !== displayFileName && cleanDisplayText.replace(/\.[a-z0-9]{3,4}$/i, '') !== displayFileName.replace(/\.[a-z0-9]{3,4}$/i, '')) ? (
                               <span className="text-[13px] font-medium leading-relaxed mt-1 pr-[4.5rem] whitespace-pre-line text-slate-900">
                                 {cleanDisplayText}
                               </span>
-                            ) : null}
+                            ) : (
+                              <div className="h-3 min-w-[3rem]" />
+                            )}
 
                             {/* Timestamp + Green Double Checkmark Status */}
                             <div className="absolute right-0 bottom-0 flex items-center gap-1 px-1 py-0.5">
