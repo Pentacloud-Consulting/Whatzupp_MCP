@@ -234,17 +234,12 @@ export default function AppShell() {
             background: 'linear-gradient(180deg, #01211C 0%, #032C25 50%, #011613 100%)',
           }}
         >
-          {/* 1. Top Brand Logo & Tagline */}
-          <div className="flex items-center gap-3 px-4 pt-5 pb-4 shrink-0">
-            <img src="/logo_current.png" alt="WhatZupp Logo" className="w-10 h-10 object-contain shrink-0 drop-shadow-sm" />
-            <div className="min-w-0">
-              <span className="font-extrabold text-xl tracking-tight text-white block leading-none font-sans">
-                WhatZupp
-              </span>
-              <span className="text-[10px] font-medium text-emerald-200/70 tracking-tight mt-1 block truncate">
-                Connect, Converse, Convert.
-              </span>
-            </div>
+          {/* 1. Top Brand Logo */}
+          <div className="flex items-center gap-3 px-4 pt-6 pb-5 shrink-0">
+            <img src="/logo_current.png" alt="WhatZupp Logo" className="w-16 h-16 object-contain shrink-0 drop-shadow-lg" />
+            <span className="font-extrabold text-3xl tracking-tight text-white block leading-none font-sans">
+              WhatZupp
+            </span>
           </div>
 
           {/* 2. Navigation Menu Links List */}
