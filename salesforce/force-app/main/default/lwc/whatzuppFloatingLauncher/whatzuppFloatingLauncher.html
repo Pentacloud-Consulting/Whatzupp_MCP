@@ -1,0 +1,25 @@
+<template>
+    <div class="floating-wrapper">
+        <button class="floating-btn" onclick={handleLaunch}>
+            🚀 Open WhatZupp
+        </button>
+    </div>
+
+    <template if:true={showModal}>
+        <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open slds-modal_large">
+            <div class="slds-modal__container" style="width: 95%; max-width: 95%;">
+                <header class="slds-modal__header slds-theme_shade">
+                    <button class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse" title="Close" onclick={handleClose} style="background: #032C25;">
+                        <lightning-icon icon-name="utility:close" alternative-text="close" variant="inverse" size="small"></lightning-icon>
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                    <h2 class="slds-text-heading_medium slds-hyphenate" style="font-weight: 700; color: #032C25;">WhatZupp CRM</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_none" style="height: 85vh;">
+                    <c-whatzupp-launchpad></c-whatzupp-launchpad>
+                </div>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

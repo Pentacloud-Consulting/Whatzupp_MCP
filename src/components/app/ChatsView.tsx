@@ -100,6 +100,31 @@ export default function ChatsView() {
     }
   }, [filteredContacts, selectedContact]);
 
+  // Deep Link: Select contact by phone via custom event
+  useEffect(() => {
+    const handleSelectContact = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.phone) {
+        const targetPhone = normalizePhone(customEvent.detail.phone);
+        const contact = filteredContacts.find(c => normalizePhone(c.phoneNumber) === targetPhone);
+        if (contact) {
+          setSelectedContact(contact);
+        } else {
+          // Temporarily create a contact if they don't exist in the list yet
+          setSelectedContact({
+            id: `temp-${Date.now()}`,
+            name: 'Salesforce Contact',
+            phoneNumber: customEvent.detail.phone,
+            online: false,
+            lastSeen: 'offline'
+          });
+        }
+      }
+    };
+    window.addEventListener('whatzupp:selectContact', handleSelectContact);
+    return () => window.removeEventListener('whatzupp:selectContact', handleSelectContact);
+  }, [filteredContacts]);
+
   // Real-time synchronization for background updates
   useEffect(() => {
     if (incomingMessageEvent) {
@@ -139,8 +164,10 @@ export default function ChatsView() {
         const phoneId = data.env?.phoneNumberId || data.phoneNumberId || data.config?.phoneNumberId;
         if (token && phoneId) {
           const autoConfig = { accessToken: token, phoneNumberId: phoneId };
-          setConfig(autoConfig);
-          localStorage.setItem('whatsappConfig', JSON.stringify(autoConfig));
+          if (!savedConfig) {
+            setConfig(autoConfig);
+            localStorage.setItem('whatsappConfig', JSON.stringify(autoConfig));
+          }
         }
       })
       .catch(() => {});

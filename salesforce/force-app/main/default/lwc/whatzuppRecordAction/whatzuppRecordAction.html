@@ -1,0 +1,14 @@
+<template>
+    <div class="action-wrapper">
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading record data..."></lightning-spinner>
+        </template>
+        <template if:true={isReady}>
+            <c-whatzupp-launchpad 
+                record-id={recordId} 
+                object-api-name={objectApiName} 
+                launch-context={launchContext}>
+            </c-whatzupp-launchpad>
+        </template>
+    </div>
+</template>

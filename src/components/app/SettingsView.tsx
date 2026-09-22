@@ -342,10 +342,13 @@ function WhatsAppConfigSection() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const config = { accessToken: token, phoneNumberId, verificationToken: businessAccountId };
+      localStorage.setItem('whatsappConfig', JSON.stringify(config));
+      
       const res = await fetch('/api/save-env', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken: token })
+        body: JSON.stringify({ accessToken: token, phoneNumberId })
       });
       if (res.ok) {
         setSaved(true);

@@ -1,0 +1,29 @@
+.floating-wrapper {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9000;
+}
+
+.floating-btn {
+    background-color: #25D366;
+    color: white;
+    font-weight: bold;
+    border: none;
+    border-radius: 50px;
+    padding: 12px 24px;
+    font-size: 14px;
+    box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.floating-btn:hover {
+    background-color: #128C7E;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(18, 140, 126, 0.5);
+}
+
+.floating-btn:active {
+    transform: translateY(0);
+}

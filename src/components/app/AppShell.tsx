@@ -136,6 +136,27 @@ export default function AppShell() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
+  // Salesforce Iframe postMessage listener
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // In production, ensure origin is salesforce
+      if (!event.data || !event.data.type) return;
+
+      if (event.data.type === 'OPEN_CHAT' && event.data.phone) {
+        setActiveScreen('chats');
+        // Dispatch custom event to select contact by phone (ChatsView will listen)
+        window.dispatchEvent(new CustomEvent('whatzupp:selectContact', { detail: { phone: event.data.phone } }));
+      }
+      
+      if (event.data.type === 'OPEN_ACCOUNT') {
+        setActiveScreen('contacts');
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [setActiveScreen]);
+
   // Auto-redirect unauthorized active screens or workspace-mismatched screens
   useEffect(() => {
     if (activeWorkspace?.type === 'salescloud' && state.activeScreen === 'sfmc') {

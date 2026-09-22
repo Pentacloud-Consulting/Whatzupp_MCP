@@ -85,7 +85,8 @@ public with sharing class WhatzuppChatController {
         if (objectApiName == 'Account') relationshipField = 'Account__c';
 
         String query = 'SELECT Id, Name, Message_Id__c, Phone__c, Content__c, Direction__c, ' +
-                        'Status__c, Timestamp__c, Lead__c, Contact__c, Account__c, Opportunity__c ' +
+                        'Status__c, Timestamp__c, Lead__c, Contact__c, Account__c, Opportunity__c, ' +
+                        'Media_Type__c, ContentVersionId__c, ContentDocumentId__c, MetaMediaId__c ' +
                         'FROM WhatsApp_Message__c WHERE (' + relationshipField + ' = :recordId';
 
         if (!phoneTerms.isEmpty()) {
@@ -121,7 +122,8 @@ public with sharing class WhatzuppChatController {
 
         return [
             SELECT Id, Name, Message_Id__c, Phone__c, Content__c, Direction__c,
-                   Status__c, Timestamp__c, Lead__c, Contact__c, Account__c
+                   Status__c, Timestamp__c, Lead__c, Contact__c, Account__c,
+                   Media_Type__c, ContentVersionId__c, ContentDocumentId__c, MetaMediaId__c
             FROM WhatsApp_Message__c
             WHERE Phone__c = :cleanPhone
                OR Phone__c = :phone

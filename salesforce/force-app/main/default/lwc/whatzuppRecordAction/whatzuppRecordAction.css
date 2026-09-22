@@ -1,0 +1,7 @@
+.action-wrapper {
+    height: 700px;
+    width: 100%;
+    position: relative;
+    padding: 0;
+    margin: -1rem; /* negative margin to flush with quick action modal borders */
+}

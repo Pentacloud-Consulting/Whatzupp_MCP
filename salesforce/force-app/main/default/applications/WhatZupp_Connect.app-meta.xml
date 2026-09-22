@@ -11,5 +11,6 @@
     <tabs>standard-Opportunity</tabs>
     <tabs>standard-Account</tabs>
     <tabs>WhatsApp_Message__c</tabs>
+    <tabs>WhatZupp_CRM</tabs>
     <uiType>Lightning</uiType>
 </CustomApplication>

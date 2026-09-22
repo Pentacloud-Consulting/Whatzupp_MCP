@@ -64,6 +64,23 @@ export default class WhatzuppChatPanel extends LightningElement {
     @track settingsWabaId = '';
     @track settingsSaving = false;
 
+    // ─── Full App Launch State ───
+    @track showFullAppModal = false;
+    get fullAppLaunchContext() {
+        return JSON.stringify({
+            phone: this.contactPhone,
+            type: 'OPEN_CHAT'
+        });
+    }
+
+    handleLaunchFullApp() {
+        this.showFullAppModal = true;
+    }
+
+    closeFullAppModal() {
+        this.showFullAppModal = false;
+    }
+
     // ─── Template state ───
     @track showTemplates = false;
     @track templates = [];
