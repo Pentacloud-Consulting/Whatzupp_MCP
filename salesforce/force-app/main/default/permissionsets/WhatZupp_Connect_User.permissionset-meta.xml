@@ -89,4 +89,8 @@
         <tab>WhatsApp_Message__c</tab>
         <visibility>Visible</visibility>
     </tabSettings>
+    <tabSettings>
+        <tab>WhatZupp_CRM</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
 </PermissionSet>
