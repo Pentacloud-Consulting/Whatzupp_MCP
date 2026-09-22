@@ -9,9 +9,5 @@
         <target>lightning__RecordPage</target>
         <target>lightning__HomePage</target>
     </targets>
-    <targetConfigs>
-        <targetConfig targets="lightning__AppPage,lightning__RecordPage,lightning__HomePage">
-            <property name="launchMode" type="String" default="Modal" label="Launch Mode" description="Choose how to launch the app (Modal or Tab)" datasource="Modal,Tab"/>
-        </targetConfig>
-    </targetConfigs>
+
 </LightningComponentBundle>
