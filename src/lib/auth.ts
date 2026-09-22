@@ -19,6 +19,8 @@ export interface SessionPayload {
   tenantName?: string | null;
   role: 'SUPER_ADMIN' | 'TENANT_ADMIN' | 'TENANT_USER';
   workspacePermissions: string[];
+  sso?: boolean;
+  ssoPermissions?: string[];
 }
 
 // ─── Password Utilities ───
@@ -53,6 +55,8 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
       tenantName: payload.tenantName as string | undefined,
       role: (payload.role as 'SUPER_ADMIN' | 'TENANT_ADMIN' | 'TENANT_USER') || 'TENANT_USER',
       workspacePermissions: (payload.workspacePermissions as string[]) || [],
+      sso: payload.sso as boolean | undefined,
+      ssoPermissions: payload.ssoPermissions as string[] | undefined,
     };
   } catch {
     return null;
