@@ -73,11 +73,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasWorkspacePermission = (workspace: string): boolean => {
     if (!user) return true; // Default fallback for open workspace demo mode
-    if (user.role === 'SUPER_ADMIN') return true;
+    
+    // If backend explicitly provides permissions, STRICTLY obey them.
+    // This allows backend to intentionally limit scope (e.g., Salesforce SSO limiting to SALES_CLOUD),
+    // overriding the default SUPER_ADMIN omnipotence.
     if (Array.isArray(user.workspacePermissions) && user.workspacePermissions.length > 0) {
       return user.workspacePermissions.includes(workspace);
     }
-    return true;
+
+    if (user.role === 'SUPER_ADMIN') return true;
+    return false;
   };
 
   return (
