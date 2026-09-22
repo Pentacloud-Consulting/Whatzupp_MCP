@@ -27,9 +27,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Media ID is required' }, { status: 400, headers: corsHeaders });
     }
 
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const authHeader = request.headers.get('authorization');
+    const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const tokenParam = searchParams.get('token');
+    const accessToken = tokenParam || headerToken || process.env.WHATSAPP_ACCESS_TOKEN;
+
     if (!accessToken) {
-      return NextResponse.json({ error: 'WhatsApp Access Token is not configured' }, { status: 500, headers: corsHeaders });
+      return NextResponse.json({ error: 'WhatsApp Access Token is not configured or provided' }, { status: 401, headers: corsHeaders });
     }
 
     const metaGraphUrl = `https://graph.facebook.com/v25.0/${mediaId}`;

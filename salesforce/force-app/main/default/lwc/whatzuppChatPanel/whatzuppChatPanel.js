@@ -18,7 +18,7 @@ import ACCOUNT_PHONE from '@salesforce/schema/Account.Phone';
 import ACCOUNT_NAME from '@salesforce/schema/Account.Name';
 
 // ─── Vercel API URL (used ONLY for sending — never for reading) ───
-const DEFAULT_HTTPS_APP_URL = 'https://whatzupp-mcp.vercel.app';
+const DEFAULT_HTTPS_APP_URL = 'https://whatzupp-mcp-pentacloud.vercel.app';
 
 
 // ─── Emoji Data — categorised common emojis ───
@@ -130,6 +130,8 @@ export default class WhatzuppChatPanel extends LightningElement {
             if (savedUrl) this.settingsAppUrl = savedUrl;
             const savedToken = localStorage.getItem('whatzupp_access_token');
             if (savedToken) this.settingsAccessToken = savedToken;
+            const savedPhoneId = localStorage.getItem('whatzupp_phone_number_id');
+            if (savedPhoneId) this.settingsPhoneNumberId = savedPhoneId;
             
             // Load fast replies
             const savedReplies = localStorage.getItem('whatzupp_fast_replies');
@@ -226,6 +228,12 @@ export default class WhatzuppChatPanel extends LightningElement {
         if (this.appBaseUrl.includes('loca.lt')) {
             headers['bypass-tunnel-reminder'] = 'true';
         }
+        // Always pass the locally-stored Meta access token so Vercel uses a fresh
+        // token instead of whatever (possibly expired) token is in its env vars
+        const cachedToken = this.settingsAccessToken || '';
+        if (cachedToken && !headers['Authorization']) {
+            headers['Authorization'] = `Bearer ${cachedToken}`;
+        }
         return headers;
     }
 
@@ -276,7 +284,7 @@ export default class WhatzuppChatPanel extends LightningElement {
         const status = m.Status__c || m.status || 'SENT';
 
         const matchMedia = contentText.match(/\[(?:Media:\s*)?(image|video|document|audio)(?::\s*([^:\s\]]+))?(?::\s*([^\s\]]+))?\]/i) || contentText.match(/\[(image|video|document|audio)(?::\s*([^:\s\]]+))?(?::\s*([^\s\]]+))?\]/i);
-        let mediaType = m.mediaType;
+        let mediaType = m.Media_Type__c || m.mediaType;
         if (!mediaType || mediaType === 'text') {
             if (matchMedia) {
                 mediaType = matchMedia[1].toLowerCase();
@@ -287,14 +295,19 @@ export default class WhatzuppChatPanel extends LightningElement {
         const isVideo = mediaType === 'video';
         const isDocument = mediaType === 'document';
 
-        const extractedMediaId = m.mediaId || (matchMedia ? matchMedia[2] : null);
+        const extractedMediaId = m.MetaMediaId__c || m.mediaId || (matchMedia ? matchMedia[2] : null);
 
         const fallbackImgSrc = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80';
         const fallbackVideoPoster = 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&auto=format&fit=crop&q=80';
 
         let mediaUrl = m.mediaUrl;
+        if (!mediaUrl && m.ContentVersionId__c) {
+            // New Architecture: Preview via Vercel using ContentVersionId
+            mediaUrl = `${this.appBaseUrl}/api/media/preview?messageId=${messageId}`;
+        }
         if (!mediaUrl && extractedMediaId) {
-            mediaUrl = `${this.appBaseUrl}/api/media?mediaId=${extractedMediaId}`;
+            // Old Architecture fallback
+            mediaUrl = `${this.appBaseUrl}/api/media?mediaId=${extractedMediaId}&token=${this.settingsAccessToken}`;
         }
         if (!mediaUrl && isImage) {
             mediaUrl = fallbackImgSrc;
@@ -439,7 +452,9 @@ export default class WhatzuppChatPanel extends LightningElement {
                     message: textToSend,
                     workspaceId: 'salescloud-ws-1',
                     salesforceRecordId: this.recordId,
-                    salesforceObjectType: this.objectApiName
+                    salesforceObjectType: this.objectApiName,
+                    accessToken: this.settingsAccessToken || undefined,
+                    phoneNumberId: this.settingsPhoneNumberId || undefined
                 })
             });
 
@@ -548,6 +563,9 @@ export default class WhatzuppChatPanel extends LightningElement {
             if (this.settingsAccessToken) {
                 localStorage.setItem('whatzupp_access_token', this.settingsAccessToken.trim());
             }
+            if (this.settingsPhoneNumberId) {
+                localStorage.setItem('whatzupp_phone_number_id', this.settingsPhoneNumberId.trim());
+            }
         } catch (e) { /* ignore */ }
 
         let saveSuccess = false;
@@ -637,7 +655,9 @@ export default class WhatzuppChatPanel extends LightningElement {
                 headers: this._getHeaders()
             });
             if (!res.ok) {
-                throw new Error(`Templates HTTP ${res.status}`);
+                const errBody = await res.json().catch(() => ({}));
+                const errMsg = errBody?.error || errBody?.details?.error?.message || `Templates HTTP ${res.status}`;
+                throw new Error(errMsg);
             }
             const data = await res.json();
             const rawTemplates = data.templates || data.data || [];
@@ -708,7 +728,9 @@ export default class WhatzuppChatPanel extends LightningElement {
                     parameters: [],
                     workspaceId: 'salescloud-ws-1',
                     salesforceRecordId: this.recordId,
-                    salesforceObjectType: this.objectApiName
+                    salesforceObjectType: this.objectApiName,
+                    accessToken: this.settingsAccessToken || undefined,
+                    phoneNumberId: this.settingsPhoneNumberId || undefined
                 })
             });
 
