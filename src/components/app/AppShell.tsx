@@ -215,9 +215,7 @@ export default function AppShell() {
         >
           {/* 1. Top Brand Logo & Tagline */}
           <div className="flex items-center gap-3 px-4 pt-5 pb-4 shrink-0">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#00C853] via-[#00E676] to-[#052E2B] flex items-center justify-center shadow-lg shadow-emerald-950/80 ring-1 ring-white/20 shrink-0">
-              <span className="text-white font-black text-xl italic tracking-tighter drop-shadow-sm select-none">w</span>
-            </div>
+            <img src="/logo_current.png" alt="WhatZupp Logo" className="w-10 h-10 object-contain shrink-0 drop-shadow-sm" />
             <div className="min-w-0">
               <span className="font-extrabold text-xl tracking-tight text-white block leading-none font-sans">
                 WhatZupp
