@@ -77,8 +77,8 @@ export async function POST(request: Request) {
     const cookieStore = await cookies();
     cookieStore.set('whatzupp_session', sessionToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true, // Must be true for SameSite=None
+      sameSite: 'none', // Required for cross-domain iframes
       path: '/',
       maxAge: 60 * 60 * 24, // 24 hours
     });

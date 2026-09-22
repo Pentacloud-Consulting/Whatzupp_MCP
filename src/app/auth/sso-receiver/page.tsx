@@ -31,9 +31,9 @@ export default function SSOReceiverPage() {
         if (res.ok && data.success) {
           setStatus('Authentication successful. Loading Workspace...');
           
-          // Redirect to the app. Pass context via URL hash or search params.
-          // Example: /app?phone=919952374972
-          let redirectUrl = '/app';
+          // Redirect to the root app. Pass context via URL hash or search params.
+          // Example: /?phone=919952374972
+          let redirectUrl = '/';
           if (data.context) {
             try {
               const parsedContext = JSON.parse(data.context);
