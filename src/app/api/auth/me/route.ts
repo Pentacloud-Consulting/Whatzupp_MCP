@@ -35,6 +35,13 @@ export async function GET(request: NextRequest) {
             }, { status: 403 });
           }
 
+          let finalPermissions = user.workspacePermissions.map((p: { workspaceType: string }) => p.workspaceType);
+
+          // If logged in via SSO, limit the permissions to what the SSO context requested (e.g. only SALES_CLOUD)
+          if (session.sso && session.ssoPermissions && Array.isArray(session.ssoPermissions)) {
+            finalPermissions = finalPermissions.filter((p: string) => session.ssoPermissions.includes(p));
+          }
+
           return NextResponse.json({
             success: true,
             authenticated: true,
@@ -45,7 +52,7 @@ export async function GET(request: NextRequest) {
               tenantId: user.tenantId,
               tenantName: user.tenant?.name || null,
               role: user.role,
-              workspacePermissions: user.workspacePermissions.map((p: { workspaceType: string }) => p.workspaceType),
+              workspacePermissions: finalPermissions,
             },
           });
         }

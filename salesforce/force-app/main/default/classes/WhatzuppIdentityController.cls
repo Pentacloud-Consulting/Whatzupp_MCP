@@ -19,7 +19,7 @@ public with sharing class WhatzuppIdentityController {
         payloadMap.put('email', currentUser.Email);
         payloadMap.put('name', currentUser.Name);
         payloadMap.put('tenantId', 'pentacloud-tenant-id'); // Can be mapped later
-        payloadMap.put('workspacePermissions', new List<String>{'SALES_CLOUD', 'SFMC'});
+        payloadMap.put('workspacePermissions', new List<String>{'SALES_CLOUD'});
         payloadMap.put('context', workspaceContext);
         payloadMap.put('iat', Datetime.now().getTime() / 1000);
         payloadMap.put('exp', (Datetime.now().getTime() / 1000) + 300); // 5 minutes validity

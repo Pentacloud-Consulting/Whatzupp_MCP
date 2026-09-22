@@ -68,6 +68,7 @@ export async function POST(request: Request) {
       role: user.role,
       tenantId: user.tenantId,
       sso: true,
+      ssoPermissions: workspacePermissions,
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
