@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       .sign(secret);
 
     const cookieStore = await cookies();
-    cookieStore.set('whatzupp_session', sessionToken, {
+    cookieStore.set('whatsapp_session', sessionToken, {
       httpOnly: true,
       secure: true, // Must be true for SameSite=None
       sameSite: 'none', // Required for cross-domain iframes
