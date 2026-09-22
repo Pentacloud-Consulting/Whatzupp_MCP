@@ -25,14 +25,10 @@ export default function SaaSLandingPage() {
       {/* ── Top Navigation Bar ── */}
       <nav className="relative z-50 border-b border-white/10 bg-[#090D16]/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#25D366] to-[#128C7E] flex items-center justify-center shadow-lg shadow-[#25D366]/20">
-              <MessageSquare size={20} className="text-white" />
-            </div>
-            <span className="font-[Syne] font-extrabold text-xl tracking-tight text-white">
-              WhatZupp <span className="text-[#25D366] text-xs font-semibold px-2 py-0.5 rounded-full border border-[#25D366]/30 bg-[#25D366]/10 ml-1">v2.0 SaaS</span>
-            </span>
-          </div>
+          <Link href="/" className="flex items-center gap-3">
+            <img src="/logo_final.png" alt="WhatZupp Logo" className="w-[140px] h-auto object-contain shrink-0 drop-shadow-lg" />
+            <span className="text-[#25D366] text-xs font-semibold px-2 py-0.5 rounded-full border border-[#25D366]/30 bg-[#25D366]/10">v2.0 SaaS</span>
+          </Link>
 
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-300">
             <a href="#features" className="hover:text-[#25D366] transition-colors">Features</a>
