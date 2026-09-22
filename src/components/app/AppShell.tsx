@@ -235,11 +235,8 @@ export default function AppShell() {
           }}
         >
           {/* 1. Top Brand Logo */}
-          <div className="flex items-center gap-3 px-4 pt-6 pb-5 shrink-0">
-            <img src="/logo_current.png" alt="WhatZupp Logo" className="w-16 h-16 object-contain shrink-0 drop-shadow-lg" />
-            <span className="font-extrabold text-3xl tracking-tight text-white block leading-none font-sans">
-              WhatZupp
-            </span>
+          <div className="flex items-center justify-center px-4 pt-6 pb-5 shrink-0">
+            <img src="/logo_final.png" alt="WhatZupp Logo" className="w-[180px] h-auto object-contain shrink-0 drop-shadow-lg" />
           </div>
 
           {/* 2. Navigation Menu Links List */}
