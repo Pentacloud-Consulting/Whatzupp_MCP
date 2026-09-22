@@ -95,6 +95,7 @@ export async function GET(req: Request) {
     headers.set('Content-Type', contentType);
     headers.set('Cache-Control', 'private, max-age=86400');
     headers.set('ETag', `"${contentVersionId || assetId}"`);
+    headers.set('Access-Control-Allow-Origin', '*');
 
     return new NextResponse(mediaBuffer, {
       status: 200,
