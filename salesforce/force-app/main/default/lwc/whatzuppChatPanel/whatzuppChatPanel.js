@@ -1,6 +1,7 @@
 import { LightningElement, api, track, wire } from 'lwc';
 import { getRecord, getFieldValue } from 'lightning/uiRecordApi';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { NavigationMixin } from 'lightning/navigation';
 
 // ─── Apex Controller Methods ───
 import getMessages from '@salesforce/apex/WhatzuppChatController.getMessages';
@@ -45,7 +46,7 @@ const EMOJI_CATEGORIES = [
     }
 ];
 
-export default class WhatzuppChatPanel extends LightningElement {
+export default class WhatzuppChatPanel extends NavigationMixin(LightningElement) {
     @api recordId;
     @api objectApiName;
 
@@ -65,7 +66,6 @@ export default class WhatzuppChatPanel extends LightningElement {
     @track settingsSaving = false;
 
     // ─── Full App Launch State ───
-    @track showFullAppModal = false;
     get fullAppLaunchContext() {
         return JSON.stringify({
             phone: this.contactPhone,
@@ -74,11 +74,12 @@ export default class WhatzuppChatPanel extends LightningElement {
     }
 
     handleLaunchFullApp() {
-        this.showFullAppModal = true;
-    }
-
-    closeFullAppModal() {
-        this.showFullAppModal = false;
+        this[NavigationMixin.Navigate]({
+            type: 'standard__navItemPage',
+            attributes: {
+                apiName: 'WhatZupp_CRM'
+            }
+        });
     }
 
     // ─── Template state ───
