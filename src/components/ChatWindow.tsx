@@ -587,7 +587,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                 const isAudio = message.mediaType === 'audio';
                 const hasMediaTag = isImage || isVideo || isDocument || isAudio;
 
-                const mediaSrc = message.mediaUrl || (hasMediaTag && extractedMediaId ? `/api/media?mediaId=${extractedMediaId}&token=${accessToken}` : (hasMediaTag ? `/api/media/preview?messageId=${message.id}` : null));
+                const mediaSrc = message.mediaUrl || (hasMediaTag && extractedMediaId ? `/api/media?mediaId=${extractedMediaId}${accessToken ? `&token=${accessToken}` : ''}` : (hasMediaTag ? `/api/media/preview?messageId=${message.id}` : null));
                 const fallbackImgSrc = mediaSrc || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
                 const fallbackVideoPoster = 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800&auto=format&fit=crop&q=80';
                 

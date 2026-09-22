@@ -29,8 +29,36 @@ export async function GET(request: NextRequest) {
 
     const authHeader = request.headers.get('authorization');
     const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-    const tokenParam = searchParams.get('token');
-    const accessToken = tokenParam || headerToken || process.env.WHATSAPP_ACCESS_TOKEN;
+    let tokenParam = searchParams.get('token');
+    if (tokenParam === 'undefined' || tokenParam === 'null') tokenParam = null;
+    let accessToken = tokenParam || headerToken || process.env.WHATSAPP_ACCESS_TOKEN;
+
+    // Dynamically read .env.local to get live updated tokens
+    if (!tokenParam && !headerToken) {
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const envPath = path.resolve(process.cwd(), '.env.local');
+        if (fs.existsSync(envPath)) {
+          const envContent = fs.readFileSync(envPath, 'utf8');
+          const lines = envContent.split('\n');
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('#') || !trimmed.includes('=')) continue;
+            const [key, ...rest] = trimmed.split('=');
+            if (key === 'WHATSAPP_ACCESS_TOKEN') {
+              let val = rest.join('=').trim();
+              if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                val = val.slice(1, -1);
+              }
+              accessToken = val;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[media/proxy] Could not read .env.local fallback:', e);
+      }
+    }
 
     if (!accessToken) {
       return NextResponse.json({ error: 'WhatsApp Access Token is not configured or provided' }, { status: 401, headers: corsHeaders });
