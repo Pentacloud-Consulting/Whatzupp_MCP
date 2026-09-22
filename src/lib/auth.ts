@@ -7,7 +7,7 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'fallback-secret-please-change-in-env'
 );
 
-const SESSION_COOKIE = 'whatsapp_session';
+const SESSION_COOKIE = 'wz_session';
 const SESSION_DURATION = 7 * 24 * 60 * 60; // 7 days in seconds
 
 export interface SessionPayload {
