@@ -38,8 +38,9 @@ export async function GET(request: NextRequest) {
           let finalPermissions = user.workspacePermissions.map((p: { workspaceType: string }) => p.workspaceType);
 
           // If logged in via SSO, limit the permissions to what the SSO context requested (e.g. only SALES_CLOUD)
-          if (session.sso && session.ssoPermissions && Array.isArray(session.ssoPermissions)) {
-            finalPermissions = finalPermissions.filter((p: string) => session.ssoPermissions.includes(p));
+          const ssoPerms = session.ssoPermissions;
+          if (session.sso && Array.isArray(ssoPerms)) {
+            finalPermissions = finalPermissions.filter((p: string) => ssoPerms.includes(p));
           }
 
           return NextResponse.json({
