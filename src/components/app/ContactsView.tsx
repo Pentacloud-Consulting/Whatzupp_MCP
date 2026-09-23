@@ -15,7 +15,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import ContactDetailsPage from './ContactDetailsPage';
 import { LABEL_COLORS } from '@/types/workspace';
-// import ContactProfileDrawer from './ContactProfileDrawer'; // Deprecated
+import { useAuth } from '@/components/auth/AuthProvider';
+import AssignModal from './AssignModal';
 
 const renderIcon = (name: string, props: any = { size: 16 }) => {
   switch (name) {
@@ -38,6 +39,7 @@ export default function ContactsView() {
   const [editingContact, setEditingContact] = useState<WorkspaceContact | null>(null);
   const [liveContacts, setLiveContacts] = useState<WorkspaceContact[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [tenantUsers, setTenantUsers] = useState<any[]>([]);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -45,6 +47,23 @@ export default function ContactsView() {
   const contactIdParam = searchParams.get('contact');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Assignment states
+  const { user } = useAuth();
+  const isAdminOrManager = user?.role === 'SUPER_ADMIN' || user?.role === 'TENANT_ADMIN' || user?.role === 'MANAGER';
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [contactToAssign, setContactToAssign] = useState<WorkspaceContact | null>(null);
+
+  useEffect(() => {
+    fetch('/api/tenant/users')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.users) {
+          setTenantUsers(data.users);
+        }
+      }).catch(e => console.error(e));
+  }, []);
 
   // Fetch live workspace contacts
   useEffect(() => {
@@ -68,10 +87,11 @@ export default function ContactsView() {
             name: c.name,
             phoneNumber: c.phoneNumber,
             email: c.email || '',
-            company: c.company || (wsId === 'sfmc-ws-1' ? 'SFMC Subscriber' : 'Sales Cloud'),
             tags: c.salesforceObjectType ? [c.salesforceObjectType] : wsId === 'sfmc-ws-1' ? ['SFMC DE', 'VIP'] : ['Sales Cloud', 'Lead'],
             workspaceId: wsId,
             createdAt: c.lastSyncedAt || new Date().toISOString(),
+            primaryAssigneeId: c.primaryAssigneeId,
+            ownerUserId: c.ownerUserId,
           }));
           setLiveContacts(formatted);
         } else {
@@ -207,6 +227,22 @@ export default function ContactsView() {
             >
               <RefreshCw size={16} className={isRefreshing ? 'animate-spin text-[#00C853]' : ''} />
             </button>
+
+            {/* Bulk Assign Button (Only for Admin/Manager) */}
+            {isAdminOrManager && (
+              <button
+                onClick={() => { setContactToAssign(null); setShowAssignModal(true); }}
+                disabled={selectedContactIds.size === 0}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition-all ${
+                  selectedContactIds.size > 0
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer hover:-translate-y-0.5 active:scale-95'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                }`}
+              >
+                <UsersIcon size={16} strokeWidth={2.5} />
+                <span>Assign Selected {selectedContactIds.size > 0 && `(${selectedContactIds.size})`}</span>
+              </button>
+            )}
 
             {/* Add Contact Button */}
             <button
@@ -410,13 +446,27 @@ export default function ContactsView() {
                         </div>
                       )}
 
+                      {/* Assignment Pill */}
+                      {contact.primaryAssigneeId && (
+                        <div className="flex items-center justify-between text-slate-700 text-[11px] pt-1.5 mt-1 border-t border-slate-200/50">
+                          <div className="flex items-center gap-1.5 font-bold truncate">
+                            <div className="w-4 h-4 rounded bg-blue-100 flex items-center justify-center">
+                              <UsersIcon size={10} className="text-blue-600 shrink-0" />
+                            </div>
+                            <span className="truncate text-blue-700 text-[10px]">
+                              Assigned to {tenantUsers.find(u => u.id === contact.primaryAssigneeId)?.fullName || 'User'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
                     </div>
                   </div>
 
                   {/* Footer Row: Tags & Actions */}
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                     <div className="flex flex-wrap gap-1">
-                      {contact.tags.map(tag => (
+                      {(contact.tags || []).map(tag => (
                         <span
                           key={tag}
                           className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider border ${
@@ -492,6 +542,22 @@ export default function ContactsView() {
             <table className="w-full text-left text-xs font-sans">
               <thead className="bg-slate-50 border-b border-slate-200/80 text-slate-500 font-extrabold uppercase text-[10px] tracking-wider">
                 <tr>
+                  {isAdminOrManager && (
+                    <th className="py-3 px-4 w-10">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-slate-300 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                        checked={filtered.length > 0 && selectedContactIds.size === filtered.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedContactIds(new Set(filtered.map(c => c.id)));
+                          } else {
+                            setSelectedContactIds(new Set());
+                          }
+                        }}
+                      />
+                    </th>
+                  )}
                   <th className="py-3 px-4">Subscriber Name</th>
                   <th className="py-3 px-4">Phone Number</th>
                   <th className="py-3 px-4">Email Address</th>
@@ -506,6 +572,23 @@ export default function ContactsView() {
 
                   return (
                     <tr key={contact.id} onClick={() => handleSetViewingProfile(contact)} className="hover:bg-slate-50/80 transition-colors cursor-pointer">
+                      {/* Checkbox */}
+                      {isAdminOrManager && (
+                        <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-slate-300 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                            checked={selectedContactIds.has(contact.id)}
+                            onChange={(e) => {
+                              const newSet = new Set(selectedContactIds);
+                              if (e.target.checked) newSet.add(contact.id);
+                              else newSet.delete(contact.id);
+                              setSelectedContactIds(newSet);
+                            }}
+                          />
+                        </td>
+                      )}
+                      
                       {/* Name */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
@@ -514,7 +597,14 @@ export default function ContactsView() {
                           </div>
                           <div>
                             <span className="font-extrabold text-slate-900 block">{contact.name}</span>
-                            <span className="text-[10px] text-slate-400 font-semibold block">ID: {contact.id.slice(-8)}</span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[10px] text-slate-400 font-semibold block">ID: {contact.id.slice(-8)}</span>
+                              {contact.primaryAssigneeId && (
+                                <span className="flex items-center gap-0.5 text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-100">
+                                  <UsersIcon size={8} /> {tenantUsers.find(u => u.id === contact.primaryAssigneeId)?.fullName || 'User'}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -537,7 +627,7 @@ export default function ContactsView() {
                       {/* Tags */}
                       <td className="py-3 px-4">
                         <div className="flex gap-1 flex-wrap">
-                          {contact.tags.map(t => (
+                          {(contact.tags || []).map(t => (
                             <span key={t} className="px-2 py-0.5 rounded bg-emerald-50 text-[#00C853] font-bold text-[10px] border border-emerald-200/60">
                               {t}
                             </span>
@@ -632,6 +722,18 @@ export default function ContactsView() {
           onClose={() => { setShowAddModal(false); setEditingContact(null); }}
         />
       )}
+
+      {/* Assignment Modal */}
+      <AssignModal
+        isOpen={showAssignModal}
+        onClose={() => setShowAssignModal(false)}
+        contacts={contactToAssign ? [contactToAssign] : filtered.filter(c => selectedContactIds.has(c.id))}
+        workspaceId={activeWorkspace.id}
+        onSuccess={() => {
+          setSelectedContactIds(new Set());
+          handleManualRefresh();
+        }}
+      />
     </div>
   );
 }

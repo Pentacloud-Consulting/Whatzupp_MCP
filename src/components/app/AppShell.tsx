@@ -5,7 +5,7 @@
 // Authentication removed — app is integrated directly with SFMC
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, MessageSquare, Users2, Send, LayoutTemplate, Target, BarChart3, Cloud, CircleDot, Settings, Crown, HelpCircle, Shield, LogOut, Bell, RefreshCw, Tag, FolderKanban } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Users2, Send, LayoutTemplate, Target, BarChart3, Cloud, CircleDot, Settings, Crown, HelpCircle, Shield, LogOut, Bell, RefreshCw, Tag, FolderKanban, Phone } from 'lucide-react';
 import WorkspaceSwitcher from '@/components/workspace/WorkspaceSwitcher';
 import { useWorkspace } from '@/components/workspace/WorkspaceProvider';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -18,10 +18,12 @@ import AutomationView from '@/components/app/AutomationView';
 import AnalyticsView from '@/components/app/AnalyticsView';
 import SettingsView from '@/components/app/SettingsView';
 import FastReplyView from '@/components/app/FastReplyView';
+import CallHistoryView from '@/components/app/CallHistoryView';
 import SFMCView from '@/components/app/SFMCView';
 import SalesCloudView from '@/components/app/SalesCloudView';
 import LabelsView from '@/components/app/LabelsView';
 import ListsView from '@/components/app/ListsView';
+import UsersView from '@/components/app/UsersView';
 import type { AppScreen } from '@/types/workspace';
 
 class ViewErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: string }> {
@@ -67,10 +69,12 @@ const NAV_ITEMS: { key: AppScreen; label: string; icon: React.ReactNode; isGreen
   { key: 'lists', label: 'Campaign Lists', icon: <FolderKanban size={19} /> },
   { key: 'broadcasts', label: 'Campaign Broadcasts', icon: <Send size={19} /> },
   { key: 'templates', label: 'Campaign Templates', icon: <LayoutTemplate size={19} /> },
+  { key: 'calls', label: 'Call History', icon: <Phone size={19} /> },
   { key: 'automation', label: 'Automation', icon: <Target size={19} /> },
   { key: 'analytics', label: 'Analytics', icon: <BarChart3 size={19} /> },
   { key: 'salescloud', label: 'Sales Cloud', icon: <Cloud size={19} />, isGreenAccent: true },
   { key: 'sfmc', label: 'SFMC', icon: <CircleDot size={19} /> },
+  { key: 'users', label: 'Users & Teams', icon: <Users2 size={19} /> },
   { key: 'settings', label: 'Settings', icon: <Settings size={19} /> },
 ];
 
@@ -182,14 +186,61 @@ export default function AppShell() {
 
     if (item.key === 'sfmc' && activeWorkspace?.type === 'salescloud') return false;
     if (item.key === 'salescloud' && activeWorkspace?.type === 'sfmc') return false;
+    
+    if (item.key === 'users' && user?.role !== 'TENANT_ADMIN') return false;
+    if (item.key === 'settings' && user?.role !== 'TENANT_ADMIN') return false;
 
     return true;
   });
 
   // Derive display name from active workspace or session user
-  const rawName = user?.fullName || activeWorkspace?.name || 'Sales Cloud Workspace';
+  const rawName = user?.fullName || activeWorkspace?.name || 'Workspace User';
   const displayName = rawName.replace(/\s*\([^)]*\)/g, '').trim();
   const initials = displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'WA';
+
+  const getRoleDisplayName = (role: string | undefined) => {
+    switch (role) {
+      case 'SUPER_ADMIN': return 'Super Admin';
+      case 'TENANT_ADMIN': return 'Tenant Admin';
+      case 'MANAGER': return 'Manager';
+      case 'AGENT': return 'Agent';
+      default: return 'Workspace User';
+    }
+  };
+
+  const roleDisplayName = getRoleDisplayName(user?.role);
+  const companyName = user?.tenantName || 'Enterprise Tenant';
+  const roleDisplayString = user?.role === 'SUPER_ADMIN' 
+    ? 'Super Admin'
+    : `${roleDisplayName} • ${companyName}`;
+
+  const renderWorkspaceBadges = () => {
+    if (user?.role === 'SUPER_ADMIN') {
+      return (
+        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-emerald-100 text-emerald-700 border border-emerald-200/60 uppercase tracking-wider shadow-sm">
+          WhatZupp Platform
+        </span>
+      );
+    }
+    
+    return user?.workspacePermissions?.map((wp: string) => {
+      if (wp === 'SALES_CLOUD') {
+        return (
+          <span key={wp} className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/60 uppercase tracking-wider shadow-sm">
+            Sales Cloud
+          </span>
+        );
+      }
+      if (wp === 'SFMC') {
+        return (
+          <span key={wp} className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200/60 uppercase tracking-wider shadow-sm">
+            SFMC
+          </span>
+        );
+      }
+      return null;
+    });
+  };
 
   const activeScreen = state.activeScreen || 'dashboard';
 
@@ -213,12 +264,14 @@ export default function AppShell() {
       case 'broadcasts': return <BroadcastsView />;
       case 'automation': return <AutomationView />;
       case 'analytics': return <AnalyticsView />;
+      case 'calls': return <CallHistoryView />;
       case 'settings': return <SettingsView />;
       case 'sfmc': return hasWorkspacePermission('SFMC') ? <SFMCView /> : <SalesCloudView />;
       case 'salescloud': return hasWorkspacePermission('SALES_CLOUD') ? <SalesCloudView /> : <DashboardView />;
       case 'fast-reply': return <FastReplyView />;
       case 'labels': return <LabelsView />;
       case 'lists': return <ListsView />;
+      case 'users': return user?.role === 'TENANT_ADMIN' ? <UsersView /> : <DashboardView />;
       default: return <DashboardView />;
     }
   };
@@ -310,8 +363,8 @@ export default function AppShell() {
       {/* ─── Main App Right Pane (Top Header + View Content) ─── */}
       <div className="flex flex-col flex-1 overflow-hidden">
 
-        {/* ─── Top Header Bar (Height: 56px) ─── */}
-        <header className="flex items-center justify-between px-6 h-[56px] bg-white/95 backdrop-blur-md border-b border-slate-200/80 shrink-0 z-40 shadow-[0_2px_12px_rgba(15,23,42,0.03)]">
+        {/* ─── Top Header Bar ─── */}
+        <header className="flex items-center justify-between px-6 min-h-[64px] py-2 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shrink-0 z-40 shadow-[0_2px_12px_rgba(15,23,42,0.03)]">
           
           {/* Left: Workspace Switcher & Status */}
           <div className="flex items-center gap-3">
@@ -359,18 +412,21 @@ export default function AppShell() {
               )}
             </button>
 
-            {/* User Profile */}
-            <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-slate-50 border border-slate-200/80 shadow-2xs">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white bg-gradient-to-tr from-[#00C853] to-[#00E676] shadow-sm">
+            {/* User Profile - Enterprise Format */}
+            <div className="flex items-center gap-3 px-3 py-1.5 rounded-2xl bg-white border border-slate-200/80 shadow-sm transition-all hover:shadow-md cursor-default">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-black text-white bg-gradient-to-tr from-[#00C853] to-[#00E676] shadow-inner shrink-0">
                 {initials}
               </div>
-              <div className="flex flex-col text-left hidden md:block">
-                <span className="text-xs font-extrabold text-slate-900 leading-none">
+              <div className="flex flex-col text-left hidden lg:flex justify-center py-0.5">
+                <span className="text-[13px] font-bold text-slate-900 leading-none">
                   {displayName}
                 </span>
-                <span className="text-[10px] text-slate-400 font-bold">
-                  {user?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Workspace User'}
+                <span className="text-[11px] font-medium text-slate-500 leading-none mt-1">
+                  {roleDisplayString}
                 </span>
+                <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                  {renderWorkspaceBadges()}
+                </div>
               </div>
             </div>
 

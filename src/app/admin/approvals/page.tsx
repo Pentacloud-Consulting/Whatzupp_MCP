@@ -21,6 +21,7 @@ export default function AdminApprovalsPage() {
   const [organizationName, setOrganizationName] = useState('');
   const [licensedWorkspaces, setLicensedWorkspaces] = useState<string[]>(['SFMC', 'SALES_CLOUD']);
   const [status, setStatus] = useState<'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
+  const [assignedPlan, setAssignedPlan] = useState('Growth');
   const [rejectedReason, setRejectedReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState({ type: '', msg: '' });
@@ -54,6 +55,7 @@ export default function AdminApprovalsPage() {
     const code = (req.organizationName || 'TENANT').toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 15);
     setTenantCode(code);
     setLicensedWorkspaces(req.requestedWorkspaces?.length ? req.requestedWorkspaces : ['SFMC', 'SALES_CLOUD']);
+    setAssignedPlan(req.requestedPlan || 'Growth');
     setModalType('APPROVE');
   };
 
@@ -64,6 +66,7 @@ export default function AdminApprovalsPage() {
     setOrganizationName(req.organizationName || `${req.fullName}'s Enterprise`);
     setLicensedWorkspaces(req.requestedWorkspaces?.length ? req.requestedWorkspaces : ['SALES_CLOUD']);
     setStatus(req.status || 'APPROVED');
+    setAssignedPlan(req.requestedPlan || 'Growth');
     setModalType('EDIT');
   };
 
@@ -96,6 +99,8 @@ export default function AdminApprovalsPage() {
           tenantCode: modalType === 'APPROVE' ? tenantCode : undefined,
           organizationName: modalType === 'APPROVE' || modalType === 'EDIT' ? organizationName : undefined,
           licensedWorkspaces: modalType === 'APPROVE' || modalType === 'EDIT' ? licensedWorkspaces : undefined,
+          assignedPlan: modalType === 'APPROVE' || modalType === 'EDIT' ? assignedPlan : undefined,
+          userLimit: modalType === 'APPROVE' || modalType === 'EDIT' ? (assignedPlan === 'Starter' ? 5 : assignedPlan === 'Business' ? 25 : assignedPlan === 'Enterprise' ? 50 : 10) : undefined,
           role: 'TENANT_ADMIN',
           rejectedReason: modalType === 'REJECT' ? rejectedReason : undefined,
         }),
@@ -151,6 +156,7 @@ export default function AdminApprovalsPage() {
                 <th className="py-3 px-3">Organization</th>
                 <th className="py-3 px-3">Contact</th>
                 <th className="py-3 px-3">Licensed Workspaces</th>
+                <th className="py-3 px-3">Subscription Plan</th>
                 <th className="py-3 px-3">Status</th>
                 <th className="py-3 px-3 text-right">Actions</th>
               </tr>
@@ -176,6 +182,10 @@ export default function AdminApprovalsPage() {
                         </span>
                       ))}
                     </div>
+                  </td>
+                  <td className="py-4 px-3">
+                    <div className="font-bold text-gray-800">{req.requestedPlan || 'Growth'}</div>
+                    <div className="text-[10px] text-gray-500 font-medium">{req.expectedUsers || 10} Users limit</div>
                   </td>
                   <td className="py-4 px-3">
                     {req.status === 'PENDING' && (
@@ -315,6 +325,21 @@ export default function AdminApprovalsPage() {
                 </div>
 
                 <div>
+                  <label className="block text-gray-600 mb-1 font-bold">Assigned Subscription Plan</label>
+                  <select
+                    value={assignedPlan}
+                    onChange={(e) => setAssignedPlan(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-900 text-xs focus:border-[#25D366] focus:outline-none font-bold"
+                  >
+                    <option value="Starter">Starter (5 Users)</option>
+                    <option value="Growth">Growth (10 Users)</option>
+                    <option value="Business">Business (25 Users)</option>
+                    <option value="Enterprise">Enterprise (50 Users)</option>
+                    <option value="Custom">Custom (Unlimited)</option>
+                  </select>
+                </div>
+
+                <div>
                   <label className="block text-gray-600 mb-2 font-bold">Licensed Workspaces (Purchased Products)</label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -389,6 +414,21 @@ export default function AdminApprovalsPage() {
                     <option value="APPROVED">APPROVED (Active)</option>
                     <option value="PENDING">PENDING (Review required)</option>
                     <option value="REJECTED">REJECTED (Access blocked)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-600 mb-1 font-bold">Assigned Subscription Plan</label>
+                  <select
+                    value={assignedPlan}
+                    onChange={(e) => setAssignedPlan(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-900 text-xs focus:border-[#25D366] focus:outline-none font-bold"
+                  >
+                    <option value="Starter">Starter (5 Users)</option>
+                    <option value="Growth">Growth (10 Users)</option>
+                    <option value="Business">Business (25 Users)</option>
+                    <option value="Enterprise">Enterprise (50 Users)</option>
+                    <option value="Custom">Custom (Unlimited)</option>
                   </select>
                 </div>
 

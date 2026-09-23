@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyPassword, createSessionToken, setSessionCookie, SessionPayload } from '@/lib/auth';
 import { prisma, hasDatabaseUrl } from '@/lib/db';
 import { getLocalSignupRequests } from '@/lib/storage/signupStore';
+import { getMockUsers } from '@/lib/storage/mockUsersStore';
 
 export async function POST(request: NextRequest) {
   try {
@@ -146,6 +147,42 @@ export async function POST(request: NextRequest) {
           user: sessionPayload,
         });
       }
+    }
+
+    // 2.5 Check shared in-memory mock users store (for mock users created in local test env)
+    const mockUsers = getMockUsers();
+    const mockUser = mockUsers.find((u: any) => u.email.toLowerCase() === cleanEmail);
+    
+    if (mockUser) {
+      if (mockUser.passwordHash) {
+        const isPasswordValid = await verifyPassword(password, mockUser.passwordHash);
+        if (!isPasswordValid) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid email or password' },
+            { status: 401 }
+          );
+        }
+      }
+
+      const sessionPayload: SessionPayload = {
+        userId: mockUser.id,
+        email: mockUser.email,
+        fullName: mockUser.fullName,
+        tenantId: mockUser.tenantId || 't-mock-tenant',
+        tenantCode: mockUser.tenantCode || 'MOCK_TENANT',
+        tenantName: mockUser.tenantName || 'Enterprise Tenant',
+        role: mockUser.role,
+        workspacePermissions: mockUser.workspacePermissions.map((wp: any) => wp.workspaceType),
+      };
+
+      const token = await createSessionToken(sessionPayload);
+      await setSessionCookie(token);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Login successful',
+        user: sessionPayload,
+      });
     }
 
     // 3. Fallback Admin Credentials

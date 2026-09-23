@@ -15,6 +15,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [requestedWorkspaces, setRequestedWorkspaces] = useState<string[]>(['SFMC', 'SALES_CLOUD']);
+  const [requestedPlan, setRequestedPlan] = useState<string>('Growth');
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -62,6 +63,7 @@ export default function SignupPage() {
           phone,
           password,
           requestedWorkspaces,
+          requestedPlan,
         }),
       });
 
@@ -253,6 +255,35 @@ export default function SignupPage() {
                       className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#25D366]"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Subscription Plan Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-2">
+                  Subscription Plan *
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {['Starter', 'Growth', 'Business', 'Enterprise'].map((plan) => (
+                    <button
+                      key={plan}
+                      type="button"
+                      onClick={() => setRequestedPlan(plan)}
+                      className={`p-2.5 rounded-xl border text-center transition-all ${
+                        requestedPlan === plan
+                          ? 'bg-[#25D366]/10 border-[#25D366] text-[#25D366]'
+                          : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20 hover:text-gray-300'
+                      }`}
+                    >
+                      <div className="text-[13px] font-bold">{plan}</div>
+                      <div className="text-[10px] opacity-75">
+                        {plan === 'Starter' && '5 Users'}
+                        {plan === 'Growth' && '10 Users'}
+                        {plan === 'Business' && '25 Users'}
+                        {plan === 'Enterprise' && '50 Users'}
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
 

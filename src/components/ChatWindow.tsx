@@ -110,6 +110,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [showCallGuidance, setShowCallGuidance] = useState<{type: 'voice' | 'video', phone: string} | null>(null);
 
   const [localMods, setLocalMods] = useState<Record<string, { deleted?: boolean; pinned?: boolean; starred?: boolean; reaction?: string }>>({});
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -135,6 +136,38 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     window.addEventListener('click', handleGlobalClick);
     return () => window.removeEventListener('click', handleGlobalClick);
   }, []);
+
+  const handleInitiateCall = async (type: 'voice' | 'video') => {
+    setShowCallGuidance({ type, phone: contact.phoneNumber });
+    const cleanPhone = contact.phoneNumber.replace(/[^0-9]/g, '');
+    
+    // Log Activity
+    try {
+      await fetch('/api/calls/activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId: 'tenant-1',
+          workspaceId: state.activeWorkspaceId || 'salescloud-ws-1',
+          workspaceType: state.workspaces.find(w => w.id === state.activeWorkspaceId)?.type || 'salescloud',
+          contactId: contact.id,
+          contactName: contact.name,
+          contactPhone: cleanPhone,
+          agentId: 'SYSTEM',
+          agentName: 'Agent',
+          activitySource: type === 'voice' ? 'WHATSAPP_VOICE_CALL' : 'WHATSAPP_VIDEO_CALL',
+          status: type === 'voice' ? 'CLICKED_CALL' : 'CLICKED_VIDEO_CALL'
+        })
+      });
+    } catch (e) {
+      console.warn('Failed to log call activity', e);
+    }
+
+    setTimeout(() => {
+      window.open(`https://wa.me/${cleanPhone}`, '_blank');
+      setShowCallGuidance(null);
+    }, 2500);
+  };
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -396,16 +429,31 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
 
         <div className="flex items-center gap-0.5">
-          {[Video, Phone, Search].map((Icon, i) => (
-            <motion.button
-              key={i}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-[#25D366] hover:bg-[#25D366]/[0.06] transition-all"
-            >
-              <Icon size={16} />
-            </motion.button>
-          ))}
+          <motion.button
+            onClick={() => handleInitiateCall('video')}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            className="p-1.5 rounded-lg text-gray-500 hover:text-[#25D366] hover:bg-[#25D366]/[0.06] transition-all"
+            title="Video Call"
+          >
+            <Video size={16} />
+          </motion.button>
+          <motion.button
+            onClick={() => handleInitiateCall('voice')}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            className="p-1.5 rounded-lg text-gray-500 hover:text-[#25D366] hover:bg-[#25D366]/[0.06] transition-all"
+            title="Voice Call"
+          >
+            <Phone size={16} />
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            className="p-1.5 rounded-lg text-gray-500 hover:text-[#25D366] hover:bg-[#25D366]/[0.06] transition-all"
+          >
+            <Search size={16} />
+          </motion.button>
           <div className="relative">
             <motion.button
               onClick={() => setShowMoreMenu(!showMoreMenu)}
@@ -918,6 +966,36 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           onSend={handleConfirmUpload}
         />
       )}
+
+      {/* ═══ Call Guidance Modal ═══ */}
+      <AnimatePresence>
+        {showCallGuidance && (
+          <div className="absolute inset-0 z-[100] bg-slate-900/20 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center border border-slate-100"
+            >
+              <div className="w-16 h-16 rounded-full bg-emerald-50 text-[#00C853] flex items-center justify-center mb-5 animate-pulse">
+                {showCallGuidance.type === 'voice' ? <Phone size={32} /> : <Video size={32} />}
+              </div>
+              <h3 className="text-xl font-black text-slate-900 mb-2">Opening WhatsApp...</h3>
+              <p className="text-sm font-semibold text-slate-500 leading-relaxed mb-6">
+                Please use WhatsApp's native {showCallGuidance.type === 'voice' ? 'Call' : 'Video Call'} button once the conversation opens.
+              </p>
+              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <motion.div 
+                  initial={{ width: '0%' }} 
+                  animate={{ width: '100%' }} 
+                  transition={{ duration: 2.5, ease: 'linear' }}
+                  className="h-full bg-[#00C853]" 
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

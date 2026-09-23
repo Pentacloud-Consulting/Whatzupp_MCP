@@ -5,8 +5,9 @@
 // No local storage — always fetches real-time from Meta API.
 
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, LayoutTemplate, ExternalLink, Search, AlertTriangle, Loader2, Eye, ChevronRight } from 'lucide-react';
+import { RefreshCw, LayoutTemplate, ExternalLink, Search, AlertTriangle, Loader2, Eye, ChevronRight, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import TemplateBuilder from './TemplateBuilder';
 
 interface TemplateComponent {
   type: string;
@@ -53,12 +54,13 @@ export default function TemplatesView() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [showBuilder, setShowBuilder] = useState(false);
 
   const fetchTemplates = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/templates');
+      const response = await fetch('/api/templates?all=true');
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         const metaDetail = errData.details?.error?.message;
@@ -110,18 +112,28 @@ export default function TemplatesView() {
             <div>
               <h1 className="text-xl font-bold text-gray-900 tracking-tight">Templates</h1>
               <p className="text-[13px] text-gray-500 mt-0.5">
-                {loading ? 'Loading...' : `${templates.length} approved templates from Meta`}
+                {loading ? 'Loading...' : `${templates.length} templates from Meta`}
               </p>
             </div>
-            <motion.button
-              onClick={fetchTemplates}
-              disabled={loading}
-              className="p-2.5 rounded-xl border border-gray-200 text-gray-500 hover:text-[#25D366] hover:border-[#25D366]/30 hover:bg-[#25D366]/5 transition-colors disabled:opacity-50"
-              whileHover={{ rotate: 180 }}
-              transition={{ duration: 0.3 }}
-            >
-              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-            </motion.button>
+            <div className="flex gap-2">
+              <motion.button
+                onClick={fetchTemplates}
+                disabled={loading}
+                className="p-2.5 rounded-xl border border-gray-200 text-gray-500 hover:text-[#25D366] hover:border-[#25D366]/30 hover:bg-[#25D366]/5 transition-colors disabled:opacity-50"
+                whileHover={{ rotate: 180 }}
+                transition={{ duration: 0.3 }}
+                title="Refresh from Meta"
+              >
+                <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+              </motion.button>
+              <button
+                onClick={() => setShowBuilder(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-[#25D366] text-white rounded-xl text-sm font-bold shadow-sm hover:bg-[#128C7E] transition-colors"
+              >
+                <Plus size={16} />
+                Create Template
+              </button>
+            </div>
           </div>
 
           {/* Search */}
@@ -341,8 +353,13 @@ export default function TemplatesView() {
                   <p className="text-[13px] font-bold text-gray-900">{selectedTemplate.name}</p>
                   <p className="text-[12px] text-gray-500 mt-0.5">Template ID: {selectedTemplate.id}</p>
                 </div>
-                <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                  ✓ APPROVED
+                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border uppercase tracking-wider
+                  ${selectedTemplate.status === 'APPROVED' ? 'text-emerald-600 bg-emerald-50 border-emerald-200' :
+                    selectedTemplate.status === 'PENDING' ? 'text-amber-600 bg-amber-50 border-amber-200' :
+                    selectedTemplate.status === 'REJECTED' ? 'text-red-600 bg-red-50 border-red-200' :
+                    'text-gray-600 bg-gray-50 border-gray-200'}
+                `}>
+                  {selectedTemplate.status === 'APPROVED' ? '✓ ' : ''}{selectedTemplate.status}
                 </span>
               </div>
             </div>
@@ -357,6 +374,18 @@ export default function TemplatesView() {
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {showBuilder && (
+          <TemplateBuilder 
+            onClose={() => setShowBuilder(false)} 
+            onSuccess={() => {
+              setShowBuilder(false);
+              fetchTemplates();
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

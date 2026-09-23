@@ -7,7 +7,7 @@ import { getLocalSignupRequests, saveLocalSignupRequest } from '@/lib/storage/si
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { fullName, organizationName, email, phone, password, requestedWorkspaces } = body;
+    const { fullName, organizationName, email, phone, password, requestedWorkspaces, requestedPlan } = body;
 
     if (!fullName || !email || !password) {
       return NextResponse.json(
@@ -22,6 +22,13 @@ export async function POST(request: NextRequest) {
       ? requestedWorkspaces
       : ['SFMC'];
     const orgName = organizationName || `${fullName}'s Organization`;
+    const plan = requestedPlan || 'Growth';
+    
+    let expectedUsers = 10; // Default for Growth
+    if (plan === 'Starter') expectedUsers = 5;
+    if (plan === 'Business') expectedUsers = 25;
+    if (plan === 'Enterprise') expectedUsers = 50;
+    if (plan === 'Custom') expectedUsers = 100;
 
     // 1. Check local signup store for duplicates
     const localRequests = getLocalSignupRequests();
@@ -51,6 +58,8 @@ export async function POST(request: NextRequest) {
       phone: phone || null,
       passwordHash,
       requestedWorkspaces: workspaces,
+      requestedPlan: plan,
+      expectedUsers,
       status: 'PENDING' as const,
       createdAt: new Date().toISOString(),
     };
@@ -78,6 +87,8 @@ export async function POST(request: NextRequest) {
             phone: phone || null,
             passwordHash,
             requestedWorkspaces: workspaces,
+            requestedPlan: plan,
+            expectedUsers,
             status: 'PENDING',
           },
         });

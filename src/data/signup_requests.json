@@ -1,5 +1,20 @@
 [
   {
+    "id": "req-1790152522362",
+    "fullName": "Inaz",
+    "organizationName": "XYZ company",
+    "email": "inaz@xyz.com",
+    "phone": "919952374972",
+    "passwordHash": "$2b$12$vsIEqUMrYYBQ6Rb2SwCvaO5L3Q/vp9BoCcIed.JnItPDzL/nhlHJi",
+    "requestedWorkspaces": [
+      "SALES_CLOUD"
+    ],
+    "requestedPlan": "Starter",
+    "expectedUsers": 5,
+    "status": "APPROVED",
+    "createdAt": "2026-09-23T08:35:22.362Z"
+  },
+  {
     "id": "req-1789628622394",
     "fullName": "Md Waseem",
     "organizationName": "Penta",

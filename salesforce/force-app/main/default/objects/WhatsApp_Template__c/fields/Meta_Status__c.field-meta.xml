@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Meta_Status__c</fullName>
+    <label>Meta Status</label>
+    <type>Text</type>
+    <length>50</length>
+    <required>false</required>
+    <description>Current status from Meta (APPROVED, REJECTED, PENDING, PAUSED, DISABLED, LIMITED, etc.). Stored as Text (not picklist) to support future unknown statuses.</description>
+</CustomField>

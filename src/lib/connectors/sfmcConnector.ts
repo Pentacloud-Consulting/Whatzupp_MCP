@@ -1,4 +1,4 @@
-import { Connector, MessagePage, WorkspaceContactResult, FieldMappingSchema, WorkspaceMessage } from './connectorInterface';
+import { Connector, MessagePage, WorkspaceContactResult, FieldMappingSchema, WorkspaceMessage, ContactAssignment, AssignmentAudit } from './connectorInterface';
 import { getSfmcAccessToken } from '../sfmcAuth';
 import { writeSentMessage, writeReceivedMessage } from '../sfmcDE';
 import { sendWhatsAppMessage } from '../../services/whatsappService';
@@ -9,7 +9,17 @@ export class SFMCConnector implements Connector {
   public id = 'sfmc-ws-1';
   public workspaceType = 'sfmc' as const;
 
-  async fetchContacts(params: { search?: string; limit?: number }): Promise<WorkspaceContactResult[]> {
+  private fallbackAssignments: ContactAssignment[] = [];
+  private fallbackAudits: AssignmentAudit[] = [];
+
+  async fetchContacts(params: { 
+    search?: string; 
+    limit?: number;
+    tenantId?: string;
+    userId?: string;
+    userRole?: string;
+    teamId?: string;
+  }): Promise<WorkspaceContactResult[]> {
     const limit = params.limit || 50;
     const sfmcRestBaseUri = process.env.SFMC_REST_BASE_URI;
 
@@ -57,12 +67,55 @@ export class SFMCConnector implements Connector {
         results = results.filter(c => c.name.toLowerCase().includes(query) || c.phoneNumber.includes(query));
       }
 
+      // Apply enterprise ownership filtering
+      if (params.tenantId && params.userRole !== 'SUPER_ADMIN') {
+        results = results.map(c => {
+          const assignment = this.fallbackAssignments.find(a => a.contactId === c.id && a.tenantId === params.tenantId);
+          return {
+            ...c,
+            ownerUserId: assignment?.ownerUserId,
+            primaryAssigneeId: assignment?.primaryAssigneeId,
+            createdByUserId: assignment?.createdByUserId,
+            teamId: assignment?.teamId,
+          };
+        });
+
+        if (params.userRole === 'AGENT' || params.userRole === 'VIEWER') {
+          results = results.filter(c => c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
+        } else if (params.userRole === 'MANAGER') {
+          results = results.filter(c => (params.teamId && c.teamId === params.teamId) || c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
+        }
+      }
+
       return results;
     } catch (err) {
       console.warn('[SFMCConnector] Error fetching contacts from SFMC:', err);
       return [];
     }
   }
+
+  // --- Enterprise Assignment Methods ---
+  async fetchContactAssignments(params: { tenantId: string }): Promise<ContactAssignment[]> {
+    return this.fallbackAssignments.filter(a => a.tenantId === params.tenantId);
+  }
+
+  async upsertContactAssignment(assignment: ContactAssignment): Promise<boolean> {
+    const existingIndex = this.fallbackAssignments.findIndex(
+      a => a.contactId === assignment.contactId && a.tenantId === assignment.tenantId
+    );
+    if (existingIndex >= 0) {
+      this.fallbackAssignments[existingIndex] = { ...this.fallbackAssignments[existingIndex], ...assignment };
+    } else {
+      this.fallbackAssignments.push({ ...assignment, id: `assign_${Date.now()}` });
+    }
+    return true;
+  }
+
+  async logAssignmentAudit(audit: AssignmentAudit): Promise<boolean> {
+    this.fallbackAudits.push({ ...audit, id: `audit_${Date.now()}` });
+    return true;
+  }
+  // -------------------------------------
 
   async fetchMessages(params: {
     recordId?: string;

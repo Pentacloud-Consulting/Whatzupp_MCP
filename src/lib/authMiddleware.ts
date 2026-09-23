@@ -24,7 +24,7 @@ export async function getSession(request: NextRequest | Request): Promise<Sessio
 
   // Try cookie first
   const cookieHeader = request.headers.get('cookie') || '';
-  const sessionMatch = cookieHeader.match(/whatsapp_session=([^;]+)/);
+  const sessionMatch = cookieHeader.match(/wz_session=([^;]+)/);
   if (sessionMatch) {
     token = sessionMatch[1];
   }

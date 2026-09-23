@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useWorkspace } from '@/components/workspace/WorkspaceProvider';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { motion } from 'framer-motion';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -90,6 +91,8 @@ const CHART_DATA_90D = [
 
 export default function DashboardView() {
   const { activeWorkspace, activeContacts, setActiveScreen } = useWorkspace();
+  const { user } = useAuth();
+  const firstName = user?.fullName?.split(' ')[0] || 'User';
   const [chartRange, setChartRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [mounted, setMounted] = useState(false);
 
@@ -336,7 +339,7 @@ export default function DashboardView() {
         <div className="space-y-2">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              {greeting}, Waseem 👋
+              {greeting}, {firstName} 👋
             </h1>
 
             {/* Turn Conversations into Opportunities badge */}

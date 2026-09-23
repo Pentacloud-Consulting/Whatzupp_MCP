@@ -25,6 +25,37 @@ export interface WorkspaceContactResult {
   company?: string;
   lastSyncedAt: string;
   labels?: string; // comma-separated label names stored in Salesforce WhatZupp_Labels__c
+  ownerUserId?: string;
+  primaryAssigneeId?: string;
+  createdByUserId?: string;
+  teamId?: string;
+}
+
+export interface ContactAssignment {
+  id?: string;
+  tenantId: string;
+  workspaceId: string;
+  contactId: string;
+  ownerUserId: string;
+  primaryAssigneeId?: string;
+  createdByUserId: string;
+  teamId?: string;
+  assignedAt: string;
+  assignedBy?: string;
+  status: string;
+  workspaceType: string;
+}
+
+export interface AssignmentAudit {
+  id?: string;
+  tenantId: string;
+  workspaceId: string;
+  contactId: string;
+  action: 'Assigned' | 'Reassigned' | 'Unassigned' | 'Created' | 'Deleted' | 'Transferred';
+  whoId: string;
+  timestamp: string;
+  fromUserId?: string;
+  toUserId?: string;
 }
 
 export interface FieldMappingSchema {
@@ -38,7 +69,18 @@ export interface Connector {
   id: string; // e.g., 'sfmc-ws-1', 'salescloud-ws-1'
   workspaceType: 'sfmc' | 'salescloud';
 
-  fetchContacts(params: { search?: string; limit?: number }): Promise<WorkspaceContactResult[]>;
+  fetchContacts(params: { 
+    search?: string; 
+    limit?: number;
+    tenantId?: string;
+    userId?: string;
+    userRole?: string;
+    teamId?: string;
+  }): Promise<WorkspaceContactResult[]>;
+
+  fetchContactAssignments?(params: { tenantId: string }): Promise<ContactAssignment[]>;
+  upsertContactAssignment?(assignment: ContactAssignment): Promise<boolean>;
+  logAssignmentAudit?(audit: AssignmentAudit): Promise<boolean>;
 
   fetchMessages(params: {
     recordId?: string;

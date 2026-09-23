@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Draft_Variables_JSON__c</fullName>
+    <label>Draft Variables JSON</label>
+    <type>LongTextArea</type>
+    <length>32768</length>
+    <visibleLines>3</visibleLines>
+    <description>Draft variables configuration stored as JSON.</description>
+</CustomField>

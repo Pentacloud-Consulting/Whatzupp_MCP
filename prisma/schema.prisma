@@ -24,11 +24,35 @@ model Tenant {
   // Used for debugging, audit logs, and future URL routing
   status     String   @default("active") @db.VarChar(20)
   // active | disabled
+  plan       String   @default("Starter") @db.VarChar(50)
+  companyName String? @map("company_name") @db.VarChar(255)
+  gstNumber  String?  @map("gst_number") @db.VarChar(50)
+  country    String?  @db.VarChar(100)
+  timezone   String?  @db.VarChar(50)
+  renewalDate DateTime? @map("renewal_date")
+  billingEmail String? @map("billing_email") @db.VarChar(255)
+  billingContact String? @map("billing_contact") @db.VarChar(255)
+  
+  // Usage Metrics
+  activeUsers      Int @default(0) @map("active_users")
+  contactsCount    Int @default(0) @map("contacts_count")
+  messagesSent     Int @default(0) @map("messages_sent")
+  templatesCreated Int @default(0) @map("templates_created")
+  broadcastsSent   Int @default(0) @map("broadcasts_sent")
+  storageUsed      Float @default(0) @map("storage_used") // MBs
+  
+  userLimit  Int      @default(5) @map("user_limit")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
+  
+  isDeleted  Boolean  @default(false) @map("is_deleted")
+  deletedAt  DateTime? @map("deleted_at")
+  deletedBy  String?  @map("deleted_by") @db.Uuid
 
   users            User[]
   tenantWorkspaces TenantWorkspace[]
+  tenantFeatures   TenantFeature[]
+  tenantSettings   TenantSettings?
   auditLogs        AuditLog[]
 
   @@map("tenants")
@@ -43,6 +67,10 @@ model TenantWorkspace {
   workspaceType String   @map("workspace_type") @db.VarChar(50)
   // Values: SFMC, SALES_CLOUD (future: ZOHO, HUBSPOT, DYNAMICS)
   createdAt     DateTime @default(now()) @map("created_at")
+  
+  isDeleted     Boolean  @default(false) @map("is_deleted")
+  deletedAt     DateTime? @map("deleted_at")
+  deletedBy     String?  @map("deleted_by") @db.Uuid
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -62,11 +90,15 @@ model User {
   email        String   @unique @db.VarChar(255)
   passwordHash String   @map("password_hash") @db.VarChar(255)
   role         String   @default("TENANT_USER") @db.VarChar(30)
-  // SUPER_ADMIN | TENANT_ADMIN | TENANT_USER
+  // SUPER_ADMIN | TENANT_ADMIN | MANAGER | AGENT | VIEWER | TENANT_USER
   status       String   @default("active") @db.VarChar(20)
-  // active | suspended | disabled
+  // active | suspended | disabled | pending_invitation
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
+
+  isDeleted    Boolean  @default(false) @map("is_deleted")
+  deletedAt    DateTime? @map("deleted_at")
+  deletedBy    String?  @map("deleted_by") @db.Uuid
 
   tenant               Tenant?               @relation(fields: [tenantId], references: [id])
   workspacePermissions WorkspacePermission[]
@@ -90,6 +122,8 @@ model SignupRequest {
   passwordHash        String    @map("password_hash") @db.VarChar(255)
   requestedWorkspaces String[]  @map("requested_workspaces")
   // e.g. ["SFMC"], ["SALES_CLOUD"], ["SFMC", "SALES_CLOUD"]
+  expectedUsers       Int?      @map("expected_users")
+  requestedPlan       String?   @map("requested_plan") @db.VarChar(50)
   status              String    @default("PENDING") @db.VarChar(20)
   // PENDING | APPROVED | REJECTED | SUSPENDED
   approvedBy          String?   @map("approved_by") @db.Uuid
@@ -112,6 +146,10 @@ model WorkspacePermission {
   workspaceType String   @map("workspace_type") @db.VarChar(50)
   // Values: SFMC, SALES_CLOUD (must exist in tenant_workspaces)
   createdAt     DateTime @default(now()) @map("created_at")
+
+  isDeleted     Boolean  @default(false) @map("is_deleted")
+  deletedAt     DateTime? @map("deleted_at")
+  deletedBy     String?  @map("deleted_by") @db.Uuid
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -154,4 +192,34 @@ model AuditLog {
   performer User?   @relation("AuditLogPerformedBy", fields: [performedBy], references: [id])
 
   @@map("audit_logs")
+}
+
+// ─── Tenant Features (Feature Flags) ───
+model TenantFeature {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  feature   String   @db.VarChar(100) // e.g. "AI_ASSISTANT", "BROADCASTS"
+  enabled   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, feature])
+  @@map("tenant_features")
+}
+
+// ─── Tenant Settings ───
+model TenantSettings {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @unique @map("tenant_id") @db.Uuid
+  requireApproval   Boolean  @default(false) @map("require_approval")
+  allowUserInvites  Boolean  @default(true) @map("allow_user_invites")
+  enableAuditLogs   Boolean  @default(true) @map("enable_audit_logs")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_settings")
 }

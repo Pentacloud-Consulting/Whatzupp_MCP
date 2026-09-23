@@ -112,12 +112,13 @@ export async function GET(request: NextRequest) {
       nextUrl = data.paging?.next || null;
     }
 
-    // ----- Filter Only APPROVED Templates -----
-    const approvedTemplates = allTemplates.filter(
+    // ----- Filter Only APPROVED Templates (unless all=true is passed) -----
+    const fetchAll = request.nextUrl.searchParams.get('all') === 'true';
+    const approvedTemplates = fetchAll ? allTemplates : allTemplates.filter(
       (template) => template.status === 'APPROVED'
     );
 
-    console.log(`[templates] Found ${approvedTemplates.length} approved templates out of ${allTemplates.length} total`);
+    console.log(`[templates] Found ${approvedTemplates.length} templates out of ${allTemplates.length} total`);
 
     // ----- Return Clean Response -----
     const cleanTemplates = approvedTemplates.map((template) => ({

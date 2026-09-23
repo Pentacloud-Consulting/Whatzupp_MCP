@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Try to fetch latest DB state if database is configured
-    if (hasDatabaseUrl()) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.userId);
+    if (hasDatabaseUrl() && isUuid) {
       try {
         const user = await prisma.user.findUnique({
           where: { id: session.userId },

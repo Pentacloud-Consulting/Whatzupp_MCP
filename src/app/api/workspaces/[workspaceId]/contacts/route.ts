@@ -19,7 +19,13 @@ export async function GET(
   const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) : 50;
 
   try {
-    const contacts = await auth.connector!.fetchContacts({ search, limit });
+    const contacts = await auth.connector!.fetchContacts({ 
+      search, 
+      limit,
+      tenantId: auth.user?.tenantId || undefined,
+      userId: auth.user?.userId,
+      userRole: auth.user?.role,
+    });
     return NextResponse.json({
       workspaceId,
       contacts,
@@ -50,6 +56,35 @@ export async function POST(
     }
 
     const contact = await auth.connector!.createContact({ name, phoneNumber, email, company, labels });
+    
+    // Automatically assign the creator as the primary assignee and owner
+    if (auth.user && auth.user.tenantId && auth.connector!.upsertContactAssignment) {
+      await auth.connector!.upsertContactAssignment({
+        tenantId: auth.user.tenantId,
+        workspaceId,
+        contactId: contact.id,
+        ownerUserId: auth.user.userId,
+        primaryAssigneeId: auth.user.userId,
+        createdByUserId: auth.user.userId,
+        assignedAt: new Date().toISOString(),
+        assignedBy: auth.user.userId,
+        status: 'Active',
+        workspaceType: auth.connector!.workspaceType
+      });
+
+      if (auth.connector!.logAssignmentAudit) {
+        await auth.connector!.logAssignmentAudit({
+          tenantId: auth.user.tenantId,
+          workspaceId,
+          contactId: contact.id,
+          action: 'Created',
+          whoId: auth.user.userId,
+          timestamp: new Date().toISOString(),
+          toUserId: auth.user.userId
+        });
+      }
+    }
+
     return NextResponse.json({ success: true, workspaceId, contact });
   } catch (error: any) {
     console.error(`[API /workspaces/${workspaceId}/contacts] POST Error:`, error);

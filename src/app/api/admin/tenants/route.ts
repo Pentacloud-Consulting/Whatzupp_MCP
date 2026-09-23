@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
   if (hasDatabaseUrl()) {
     try {
       dbTenants = await prisma.tenant.findMany({
+        where: { isDeleted: false },
         orderBy: { createdAt: 'desc' },
         include: {
           tenantWorkspaces: true,
@@ -62,7 +63,14 @@ export async function POST(request: NextRequest) {
       deleteLocalTenant(tenantId);
       if (hasDatabaseUrl()) {
         try {
-          await prisma.tenant.delete({ where: { id: tenantId } }).catch(() => {});
+          await prisma.tenant.update({ 
+            where: { id: tenantId },
+            data: {
+              isDeleted: true,
+              deletedAt: new Date(),
+              deletedBy: session?.userId || 'system'
+            }
+          }).catch(() => {});
         } catch {}
       }
       return NextResponse.json({ success: true, message: 'Tenant deleted successfully' });

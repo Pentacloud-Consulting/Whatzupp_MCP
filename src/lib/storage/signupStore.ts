@@ -10,6 +10,8 @@ export interface LocalSignupRequest {
   phone: string | null;
   passwordHash?: string;
   requestedWorkspaces: string[];
+  requestedPlan?: string;
+  expectedUsers?: number;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   createdAt: string;
 }

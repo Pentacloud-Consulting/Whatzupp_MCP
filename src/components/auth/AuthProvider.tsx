@@ -10,7 +10,7 @@ export interface UserSession {
   tenantId: string | null;
   tenantCode?: string | null;
   tenantName?: string | null;
-  role: 'SUPER_ADMIN' | 'TENANT_ADMIN' | 'TENANT_USER';
+  role: 'SUPER_ADMIN' | 'TENANT_ADMIN' | 'MANAGER' | 'AGENT' | 'VIEWER' | 'TENANT_USER';
   workspacePermissions: string[];
 }
 
@@ -20,6 +20,9 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isSuperAdmin: boolean;
   isTenantAdmin: boolean;
+  isManager: boolean;
+  isAgent: boolean;
+  isViewer: boolean;
   hasWorkspacePermission: (workspace: string) => boolean;
   login: (session: UserSession) => void;
   logout: () => Promise<void>;
@@ -96,6 +99,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: !!user,
         isSuperAdmin: user?.role === 'SUPER_ADMIN',
         isTenantAdmin: user?.role === 'TENANT_ADMIN' || user?.role === 'SUPER_ADMIN',
+        isManager: user?.role === 'MANAGER' || user?.role === 'TENANT_ADMIN' || user?.role === 'SUPER_ADMIN',
+        isAgent: user?.role === 'AGENT' || user?.role === 'MANAGER' || user?.role === 'TENANT_ADMIN' || user?.role === 'SUPER_ADMIN',
+        isViewer: user?.role === 'VIEWER',
         hasWorkspacePermission,
         login,
         logout,

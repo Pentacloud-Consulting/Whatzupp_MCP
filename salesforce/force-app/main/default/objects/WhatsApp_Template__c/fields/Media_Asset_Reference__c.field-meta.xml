@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Media_Asset_Reference__c</fullName>
+    <label>Media Asset Reference</label>
+    <type>Text</type>
+    <length>255</length>
+    <required>false</required>
+    <description>ContentVersion ID (Salesforce Files) or Content Builder Asset URL. Never binary blobs.</description>
+</CustomField>

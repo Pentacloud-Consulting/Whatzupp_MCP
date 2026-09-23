@@ -104,7 +104,9 @@ export type AppScreen =
   | 'settings'
   | 'fast-reply'
   | 'labels'
-  | 'lists';
+  | 'lists'
+  | 'calls'
+  | 'users';
 
 export type ThemeMode = 'light' | 'dark';
 

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Status__c</fullName>
+    <label>Internal Status</label>
+    <type>Text</type>
+    <length>50</length>
+    <required>false</required>
+    <description>Internal WhatZupp status: DRAFT, PENDING_APPROVAL, APPROVED_INTERNAL, SUBMITTED_TO_META, PENDING_META, APPROVED, REJECTED, PAUSED, DISABLED, LIMITED.</description>
+</CustomField>

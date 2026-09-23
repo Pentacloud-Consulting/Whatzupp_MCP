@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { action, requestId, tenantCode, organizationName, licensedWorkspaces, role, rejectedReason, fullName, email, status } = body;
+    const { action, requestId, tenantCode, organizationName, licensedWorkspaces, role, rejectedReason, fullName, email, status, assignedPlan, userLimit, features } = body;
 
     if (!requestId || !action) {
       return NextResponse.json(
@@ -85,12 +85,17 @@ export async function POST(request: NextRequest) {
       const workspaces: string[] = Array.isArray(licensedWorkspaces) && licensedWorkspaces.length > 0
         ? licensedWorkspaces
         : ['SALES_CLOUD'];
+        
+      const plan = assignedPlan || 'Growth';
+      const limit = typeof userLimit === 'number' ? userLimit : 10;
 
       updateLocalSignupRequest(requestId, {
         fullName: fullName || undefined,
         organizationName: organizationName || undefined,
         email: email || undefined,
         requestedWorkspaces: workspaces,
+        requestedPlan: plan,
+        expectedUsers: limit,
         status: status || undefined,
       });
 
@@ -102,6 +107,8 @@ export async function POST(request: NextRequest) {
               fullName: fullName || undefined,
               organizationName: organizationName || undefined,
               requestedWorkspaces: workspaces,
+              requestedPlan: plan,
+              expectedUsers: limit,
               status: status || undefined,
             },
           }).catch(() => {});
@@ -153,6 +160,9 @@ export async function POST(request: NextRequest) {
         ? licensedWorkspaces
         : ['SFMC'];
       const userRole = role || 'TENANT_ADMIN';
+      const plan = assignedPlan || 'Growth';
+      const limit = typeof userLimit === 'number' ? userLimit : 10;
+      const enabledFeatures: string[] = Array.isArray(features) ? features : [];
 
       updateLocalSignupRequest(requestId, {
         status: 'APPROVED',
@@ -160,12 +170,24 @@ export async function POST(request: NextRequest) {
         organizationName: orgName,
       });
 
-      try {
-        const signupReq = await prisma.signupRequest.findUnique({
-          where: { id: requestId },
-        });
+      const localReqs = getLocalSignupRequests();
+      const localReq = localReqs.find((r: any) => r.id === requestId);
+      let signupReq = null;
 
-        if (signupReq) {
+      if (hasDatabaseUrl()) {
+        try {
+          if (!requestId.startsWith('req-')) {
+            signupReq = await prisma.signupRequest.findUnique({
+              where: { id: requestId },
+            });
+          }
+        } catch {}
+      }
+
+      const reqData = signupReq || localReq;
+
+      try {
+        if (reqData && hasDatabaseUrl()) {
           let tenant = await prisma.tenant.findUnique({
             where: { tenantCode: code },
           });
@@ -175,9 +197,24 @@ export async function POST(request: NextRequest) {
               data: {
                 name: orgName,
                 tenantCode: code,
-                status: 'active',
+                status: 'ACTIVE',
+                plan: plan,
+                userLimit: limit,
               },
             });
+            
+            // Create default settings
+            await prisma.tenantSettings.create({
+              data: {
+                tenantId: tenant.id,
+              }
+            });
+          } else {
+             // If tenant exists, update plan and limit
+             await prisma.tenant.update({
+               where: { id: tenant.id },
+               data: { plan, userLimit: limit }
+             });
           }
 
           for (const wsType of workspaces) {
@@ -196,13 +233,22 @@ export async function POST(request: NextRequest) {
             });
           }
 
+          // Enable features
+          for (const feature of enabledFeatures) {
+             await prisma.tenantFeature.upsert({
+               where: { tenantId_feature: { tenantId: tenant.id, feature } },
+               update: { enabled: true },
+               create: { tenantId: tenant.id, feature, enabled: true }
+             });
+          }
+
           const newUser = await prisma.user.create({
             data: {
               tenantId: tenant.id,
-              fullName: signupReq.fullName,
-              email: signupReq.email,
-              phone: signupReq.phone,
-              passwordHash: signupReq.passwordHash,
+              fullName: reqData.fullName,
+              email: reqData.email,
+              phone: reqData.phone,
+              passwordHash: reqData.passwordHash || 'default-hash-if-missing',
               role: userRole,
               status: 'active',
             },
@@ -217,14 +263,16 @@ export async function POST(request: NextRequest) {
             });
           }
 
-          await prisma.signupRequest.update({
-            where: { id: requestId },
-            data: {
-              status: 'APPROVED',
-              approvedBy: session?.userId || null,
-              approvedAt: new Date(),
-            },
-          });
+          if (!requestId.startsWith('req-')) {
+            await prisma.signupRequest.update({
+              where: { id: requestId },
+              data: {
+                status: 'APPROVED',
+                approvedBy: session?.userId || null,
+                approvedAt: new Date(),
+              },
+            }).catch(() => {});
+          }
 
           await prisma.auditLog.create({
             data: {
