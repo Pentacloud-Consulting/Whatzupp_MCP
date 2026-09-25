@@ -112,9 +112,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const workspaceId = searchParams.get('workspaceId');
 
-    let flows = Array.from(flowStore.values());
+    let flows = Array.from(flowStore.values()) as ConversationFlow[];
     if (workspaceId) {
-      flows = flows.filter(f => f.workspaceId === workspaceId);
+      flows = flows.filter((f: ConversationFlow) => f.workspaceId === workspaceId);
     }
 
     return NextResponse.json({ flows });
