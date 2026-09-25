@@ -9,7 +9,7 @@ import type { WorkspaceContact } from '@/types/workspace';
 import {
   Search, Plus, Users, Edit2, Trash2, Phone, Mail, Building2, Briefcase, Globe,
   Users2 as UsersIcon, ShoppingBag, Zap, MessageSquare, ExternalLink, Copy, Check,
-  Sparkles, Filter, LayoutGrid, List, MoreHorizontal, ShieldCheck, RefreshCw
+  Sparkles, Filter, LayoutGrid, List, MoreHorizontal, ShieldCheck, RefreshCw, UserMinus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
@@ -54,6 +54,7 @@ export default function ContactsView() {
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [contactToAssign, setContactToAssign] = useState<WorkspaceContact | null>(null);
+  const [selectedOwnerFilter, setSelectedOwnerFilter] = useState<string>('all');
 
   useEffect(() => {
     fetch('/api/tenant/users')
@@ -79,7 +80,10 @@ export default function ContactsView() {
       headers: { 'X-Workspace-Key': wsKey },
       cache: 'no-store'
     })
-      .then(res => res.json())
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        return res.json();
+      })
       .then(data => {
         if (data.contacts && Array.isArray(data.contacts)) {
           const formatted: WorkspaceContact[] = data.contacts.map((c: any) => ({
@@ -92,6 +96,8 @@ export default function ContactsView() {
             createdAt: c.lastSyncedAt || new Date().toISOString(),
             primaryAssigneeId: c.primaryAssigneeId,
             ownerUserId: c.ownerUserId,
+            createdByUserId: c.createdByUserId,
+            ownerName: c.ownerName,
           }));
           setLiveContacts(formatted);
         } else {
@@ -160,12 +166,49 @@ export default function ContactsView() {
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
+  const handleBulkUnassign = async () => {
+    if (selectedContactIds.size === 0) return;
+    const selectedArray = Array.from(selectedContactIds);
+    setLiveContacts(prev => prev.map(c => 
+      selectedArray.includes(c.id) ? { ...c, primaryAssigneeId: undefined, ownerUserId: undefined } : c
+    ));
+    setSelectedContactIds(new Set());
+    
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspace.id}/contacts/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactIds: selectedArray, assigneeId: 'unassigned' })
+      });
+      if (!res.ok) setRefreshKey(prev => prev + 1);
+    } catch (err) {
+      setRefreshKey(prev => prev + 1);
+    }
+  };
+
   // Tag options
   const allTags = Array.from(
     new Set(displayContacts.flatMap(c => c.tags))
   );
 
   const filtered = displayContacts.filter(c => {
+    // 1. Ownership visibility rules
+    if (!isAdminOrManager && user?.userId) {
+      const isOwned = c.primaryAssigneeId === user.userId ||
+                      c.ownerUserId === user.userId ||
+                      c.createdByUserId === user.userId ||
+                      c.ownerName === user.fullName;
+      if (!isOwned) return false;
+    } else if (isAdminOrManager && selectedOwnerFilter !== 'all') {
+      if (selectedOwnerFilter === 'unassigned') {
+        if (c.primaryAssigneeId || c.ownerUserId) return false;
+      } else {
+        if (c.primaryAssigneeId !== selectedOwnerFilter &&
+            c.ownerUserId !== selectedOwnerFilter &&
+            c.createdByUserId !== selectedOwnerFilter) return false;
+      }
+    }
+
     const matchesSearch = 
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.phoneNumber.includes(search) ||
@@ -230,18 +273,34 @@ export default function ContactsView() {
 
             {/* Bulk Assign Button (Only for Admin/Manager) */}
             {isAdminOrManager && (
-              <button
-                onClick={() => { setContactToAssign(null); setShowAssignModal(true); }}
-                disabled={selectedContactIds.size === 0}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition-all ${
-                  selectedContactIds.size > 0
-                    ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer hover:-translate-y-0.5 active:scale-95'
-                    : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-                }`}
-              >
-                <UsersIcon size={16} strokeWidth={2.5} />
-                <span>Assign Selected {selectedContactIds.size > 0 && `(${selectedContactIds.size})`}</span>
-              </button>
+              <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-2xl">
+                <button
+                  onClick={() => handleBulkUnassign()}
+                  disabled={selectedContactIds.size === 0}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-extrabold text-xs transition-all ${
+                    selectedContactIds.size > 0
+                      ? 'bg-rose-100 text-rose-600 hover:bg-rose-200 cursor-pointer active:scale-95'
+                      : 'text-slate-400 cursor-not-allowed opacity-50'
+                  }`}
+                  title="Unassign selected contacts"
+                >
+                  <UserMinus size={16} strokeWidth={2.5} />
+                  <span>Unassign {selectedContactIds.size > 0 && `(${selectedContactIds.size})`}</span>
+                </button>
+
+                <button
+                  onClick={() => { setContactToAssign(null); setShowAssignModal(true); }}
+                  disabled={selectedContactIds.size === 0}
+                  className={`flex items-center gap-2 px-4 py-1.5 rounded-xl font-extrabold text-xs shadow-md transition-all ${
+                    selectedContactIds.size > 0
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer active:scale-95'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                  }`}
+                >
+                  <UsersIcon size={16} strokeWidth={2.5} />
+                  <span>Assign Selected {selectedContactIds.size > 0 && `(${selectedContactIds.size})`}</span>
+                </button>
+              </div>
             )}
 
             {/* Add Contact Button */}
@@ -284,9 +343,27 @@ export default function ContactsView() {
             )}
           </div>
 
-          {/* Right Toolbar: Tag Filters & Grid/Table Toggle */}
+          {/* Right Toolbar: Owner & Tag Filters & Grid/Table Toggle */}
           <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
             
+            {/* Admin Owner Filter */}
+            {isAdminOrManager && (
+              <select
+                value={selectedOwnerFilter}
+                onChange={e => setSelectedOwnerFilter(e.target.value)}
+                className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-white border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#00C853]/30 shadow-2xs cursor-pointer"
+                title="Filter by Contact Owner"
+              >
+                <option value="all">👥 All Owners</option>
+                <option value="unassigned">⚠️ Unassigned Contacts</option>
+                {tenantUsers.map((u: any) => (
+                  <option key={u.id} value={u.id}>
+                    👤 {u.fullName} ({u.role})
+                  </option>
+                ))}
+              </select>
+            )}
+
             {/* Tag Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
               <button
@@ -447,17 +524,31 @@ export default function ContactsView() {
                       )}
 
                       {/* Assignment Pill */}
-                      {contact.primaryAssigneeId && (
-                        <div className="flex items-center justify-between text-slate-700 text-[11px] pt-1.5 mt-1 border-t border-slate-200/50">
-                          <div className="flex items-center gap-1.5 font-bold truncate">
-                            <div className="w-4 h-4 rounded bg-blue-100 flex items-center justify-center">
-                              <UsersIcon size={10} className="text-blue-600 shrink-0" />
+                      {contact.primaryAssigneeId && contact.primaryAssigneeId !== 'unassigned' && (
+                        (() => {
+                          const assignedUser = tenantUsers.find(u => u.id === contact.primaryAssigneeId);
+                          const assigneeDisplay = assignedUser?.fullName || contact.ownerName || 'Unknown User';
+                          return (
+                            <div className="flex flex-col gap-1.5 pt-1.5 mt-1 border-t border-slate-200/50">
+                              <div className="flex items-center gap-1.5 font-bold truncate">
+                                <div className={`w-4 h-4 rounded flex items-center justify-center ${contact.isCovered ? 'bg-emerald-100' : 'bg-blue-100'}`}>
+                                  {contact.isCovered
+                                    ? <ShieldCheck size={10} className="text-emerald-600 shrink-0" />
+                                    : <UsersIcon size={10} className="text-blue-600 shrink-0" />
+                                  }
+                                </div>
+                                <span className={`truncate text-[10px] ${contact.isCovered ? 'text-emerald-700' : 'text-blue-700'}`}>
+                                  {contact.isCovered ? 'Covered By ' : 'Assigned to '}{assigneeDisplay}
+                                </span>
+                              </div>
+                              {contact.isCovered && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md w-fit">
+                                  <ShieldCheck size={8} /> Coverage Active
+                                </span>
+                              )}
                             </div>
-                            <span className="truncate text-blue-700 text-[10px]">
-                              Assigned to {tenantUsers.find(u => u.id === contact.primaryAssigneeId)?.fullName || 'User'}
-                            </span>
-                          </div>
-                        </div>
+                          );
+                        })()
                       )}
 
                     </div>
@@ -599,10 +690,24 @@ export default function ContactsView() {
                             <span className="font-extrabold text-slate-900 block">{contact.name}</span>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="text-[10px] text-slate-400 font-semibold block">ID: {contact.id.slice(-8)}</span>
-                              {contact.primaryAssigneeId && (
-                                <span className="flex items-center gap-0.5 text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-100">
-                                  <UsersIcon size={8} /> {tenantUsers.find(u => u.id === contact.primaryAssigneeId)?.fullName || 'User'}
-                                </span>
+                              {contact.primaryAssigneeId && contact.primaryAssigneeId !== 'unassigned' && (
+                                (() => {
+                                  const assignedUser = tenantUsers.find(u => u.id === contact.primaryAssigneeId);
+                                  const assigneeDisplay = assignedUser?.fullName || contact.ownerName || 'Unknown User';
+                                  return (
+                                    <div className="flex flex-col gap-1 items-start">
+                                      <span className={`flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${contact.isCovered ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-blue-600 bg-blue-50 border-blue-100'}`}>
+                                        <UsersIcon size={8} /> 
+                                        {contact.isCovered ? 'Covered By: ' : ''}{assigneeDisplay}
+                                      </span>
+                                      {contact.isCovered && (
+                                        <span className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                                          <ShieldCheck size={8} /> Coverage Active
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })()
                               )}
                             </div>
                           </div>
@@ -672,7 +777,10 @@ export default function ContactsView() {
           existingContact={editingContact}
           workspaceLabels={state.chatLabels.filter(l => l.workspaceId === activeWorkspace.id)}
           initialLabelIds={editingContact ? (state.conversationLabels[editingContact.id] || []) : []}
-          onSave={async (data, selectedLabelIds) => {
+          tenantUsers={tenantUsers}
+          isAdminOrManager={isAdminOrManager}
+          currentUser={user}
+          onSave={async (data, selectedLabelIds, assigneeId) => {
             const isSalesCloud = activeWorkspace.type === 'salescloud' || activeWorkspace.platform === 'sales_cloud' || activeWorkspace.id === 'salescloud-ws-1';
             const wsKey = isSalesCloud
               ? (process.env.NEXT_PUBLIC_WORKSPACE_SALESCLOUD_API_KEY || 'salescloud-ws-key-secret')
@@ -691,24 +799,37 @@ export default function ContactsView() {
                   headers: { 'X-Workspace-Key': wsKey, 'Content-Type': 'application/json' },
                   body: JSON.stringify({ id: targetId, ...data, labels: labelNames })
                 });
-                // Update local state only (skip generic /api/user/contacts for Sales Cloud)
-                try { await updateContact(editingContact.id, data); } catch(e) { /* ignore generic API errors for live workspaces */ }
+
+                if (assigneeId !== undefined) {
+                  const targetAssignee = (assigneeId && assigneeId !== 'unassigned') ? assigneeId : 'unassigned';
+                  await fetch(`/api/workspaces/${activeWorkspace.id}/contacts/assign`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contactIds: [targetId], assigneeId: targetAssignee })
+                  }).catch(e => console.warn('Assign error:', e));
+
+                  setLiveContacts(prev => prev.map(c => c.id === targetId ? {
+                    ...c,
+                    primaryAssigneeId: targetAssignee === 'unassigned' ? undefined : targetAssignee,
+                    ownerUserId: targetAssignee === 'unassigned' ? undefined : targetAssignee,
+                  } : c));
+                }
+
+                try { await updateContact(editingContact.id, data); } catch(e) { /* ignore generic API errors */ }
                 await setConversationLabels(targetId, selectedLabelIds);
               } else {
                 // Create via workspace-specific Salesforce API
                 const wsRes = await fetch(`/api/workspaces/${activeWorkspace.id}/contacts`, {
                   method: 'POST',
                   headers: { 'X-Workspace-Key': wsKey, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ ...data, labels: labelNames })
+                  body: JSON.stringify({ ...data, labels: labelNames, assigneeId })
                 });
                 const wsJson = await wsRes.json();
-                // Use the ID returned from the workspace API if available
                 const newContactId = wsJson?.contact?.id || wsJson?.contact?.salesforceRecordId || `contact-${Date.now()}`;
                 try {
                   const newContact = await addContact({ ...data, workspaceId: activeWorkspace.id });
                   await setConversationLabels(newContact.id, selectedLabelIds);
                 } catch(e) {
-                  // If generic API fails (e.g. Sales Cloud), assign labels using the workspace API ID
                   await setConversationLabels(newContactId, selectedLabelIds);
                 }
               }
@@ -739,18 +860,22 @@ export default function ContactsView() {
 }
 
 // ─── Contact Modal ───
-function ContactModal({ workspace, existingContact, workspaceLabels, initialLabelIds, onSave, onClose }: {
+function ContactModal({ workspace, existingContact, workspaceLabels, initialLabelIds, tenantUsers, isAdminOrManager, currentUser, onSave, onClose }: {
   workspace: { id: string; color: string; name: string; icon: string };
   existingContact: WorkspaceContact | null;
   workspaceLabels: any[];
   initialLabelIds: string[];
-  onSave: (data: Omit<WorkspaceContact, 'id' | 'createdAt'>, selectedLabelIds: string[]) => void;
+  tenantUsers: any[];
+  isAdminOrManager: boolean;
+  currentUser: any;
+  onSave: (data: Omit<WorkspaceContact, 'id' | 'createdAt'>, selectedLabelIds: string[], assigneeId?: string) => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState(existingContact?.name || '');
   const [phoneNumber, setPhoneNumber] = useState(existingContact?.phoneNumber || '');
   const [email, setEmail] = useState(existingContact?.email || '');
-  const [company, setCompany] = useState(existingContact?.company || '');
+  const [company, setCompany] = useState(existingContact?.company || currentUser?.tenantName || '');
+  const [assigneeId, setAssigneeId] = useState(existingContact?.primaryAssigneeId || existingContact?.ownerUserId || currentUser?.userId || '');
   const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>(initialLabelIds);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -764,7 +889,9 @@ function ContactModal({ workspace, existingContact, workspaceLabels, initialLabe
       tags: [],
       workspaceId: existingContact?.workspaceId || workspace.id,
       avatar: '',
-    }, selectedLabelIds);
+      primaryAssigneeId: assigneeId || currentUser?.userId,
+      ownerUserId: assigneeId || currentUser?.userId,
+    }, selectedLabelIds, assigneeId);
   };
 
   return (
@@ -795,6 +922,22 @@ function ContactModal({ workspace, existingContact, workspaceLabels, initialLabe
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00C853]/30 focus:border-[#00C853] focus:bg-white transition-all"
             />
           </div>
+
+          {isAdminOrManager && (
+            <div>
+              <label className="block text-xs font-extrabold text-slate-700 mb-1">Assigned Owner / User</label>
+              <select
+                value={assigneeId}
+                onChange={e => setAssigneeId(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00C853]/30 focus:border-[#00C853] focus:bg-white transition-all cursor-pointer"
+              >
+                <option value="">Unassigned</option>
+                {tenantUsers.map((u: any) => (
+                  <option key={u.id} value={u.id}>{u.fullName} ({u.role})</option>
+                ))}
+              </select>
+            </div>
+          )}
           
           <div>
             <label className="block text-xs font-extrabold text-slate-700 mb-1">Phone Number *</label>

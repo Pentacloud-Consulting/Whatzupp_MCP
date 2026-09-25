@@ -18,7 +18,7 @@ export default function ContactDetailsPage({ contact, onBack, onStartChat }: Con
     phoneNumber: contact.phoneNumber,
     email: contact.email || '',
     company: contact.company || '',
-    tags: contact.tags.join(', ')
+    tags: (contact.tags || []).join(', ')
   });
   const [isSaving, setIsSaving] = useState(false);
   const { activeWorkspace, updateContact, state, setConversationLabels } = useWorkspace();
@@ -287,6 +287,44 @@ export default function ContactDetailsPage({ contact, onBack, onStartChat }: Con
                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                      />
                    )}
+                </div>
+
+                {/* Source System / List Card */}
+                <div className="p-5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Source System / List</label>
+                   <p className="text-slate-900 font-bold text-sm truncate flex items-center gap-2">
+                     {activeWorkspace?.type === 'salescloud' ? 'Sales Cloud (CRM)' : 'SFMC (Data Extension)'}
+                   </p>
+                </div>
+
+                {/* Assignment / Ownership Card */}
+                <div className="p-5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Assigned Owner</label>
+                   <div className="flex items-center gap-2">
+                     <span className={`w-2 h-2 rounded-full ${contact.primaryAssigneeId && contact.primaryAssigneeId !== 'unassigned' ? 'bg-blue-500' : 'bg-slate-300'}`}></span>
+                     <p className="text-slate-900 font-bold text-sm truncate">
+                       {contact.primaryAssigneeId && contact.primaryAssigneeId !== 'unassigned'
+                         ? (contact.ownerName || `ID: ${contact.primaryAssigneeId}`)
+                         : 'Unassigned'}
+                     </p>
+                   </div>
+                </div>
+
+                {/* Record ID Card */}
+                <div className="p-5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Record ID</label>
+                   <p className="text-slate-500 font-mono text-xs truncate select-all">{contact.id}</p>
+                </div>
+
+                {/* Last Synced / Created Card */}
+                <div className="p-5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Last Synced At</label>
+                   <p className="text-slate-900 font-bold text-sm truncate">
+                     {contact.createdAt ? new Date(contact.createdAt).toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short'
+                      }) : 'Just now'}
+                   </p>
                 </div>
 
                 {/* Tags Card (Full Width) */}

@@ -50,21 +50,25 @@ export async function POST(
 
   try {
     const body = await request.json();
-    const { name, phoneNumber, email, company, labels } = body;
+    const { name, phoneNumber, email, company, labels, assigneeId, ownerUserId } = body;
     if (!name || !phoneNumber) {
       return NextResponse.json({ error: 'name and phoneNumber are required' }, { status: 400 });
     }
 
     const contact = await auth.connector!.createContact({ name, phoneNumber, email, company, labels });
     
-    // Automatically assign the creator as the primary assignee and owner
-    if (auth.user && auth.user.tenantId && auth.connector!.upsertContactAssignment) {
+    // Automatically assign the owner (Admin-selected or default creator)
+    const targetAssignee = assigneeId || auth.user?.userId || 'user-default';
+    const targetOwner = ownerUserId || targetAssignee;
+
+    if (auth.user && auth.connector!.upsertContactAssignment) {
+      const tenantId = auth.user.tenantId || 'tenant-1';
       await auth.connector!.upsertContactAssignment({
-        tenantId: auth.user.tenantId,
+        tenantId: tenantId,
         workspaceId,
         contactId: contact.id,
-        ownerUserId: auth.user.userId,
-        primaryAssigneeId: auth.user.userId,
+        ownerUserId: targetOwner,
+        primaryAssigneeId: targetAssignee,
         createdByUserId: auth.user.userId,
         assignedAt: new Date().toISOString(),
         assignedBy: auth.user.userId,
@@ -74,7 +78,7 @@ export async function POST(
 
       if (auth.connector!.logAssignmentAudit) {
         await auth.connector!.logAssignmentAudit({
-          tenantId: auth.user.tenantId,
+          tenantId: auth.user.tenantId || 'tenant-1',
           workspaceId,
           contactId: contact.id,
           action: 'Created',

@@ -36,7 +36,7 @@ export interface ContactAssignment {
   tenantId: string;
   workspaceId: string;
   contactId: string;
-  ownerUserId: string;
+  ownerUserId?: string;
   primaryAssigneeId?: string;
   createdByUserId: string;
   teamId?: string;
@@ -56,6 +56,60 @@ export interface AssignmentAudit {
   timestamp: string;
   fromUserId?: string;
   toUserId?: string;
+}
+
+export interface CoverageTransfer {
+  id?: string;
+  tenantId: string;
+  workspaceId: string;
+  workspaceType: string;
+  coverageSource: string;
+  originalOwnerId: string;
+  originalUserRole?: string;
+  temporaryOwnerId: string;
+  temporaryUserRole?: string;
+  scopeType: 'ALL_CONTACTS' | 'SELECTED_CONTACTS' | 'LABEL_BASED' | 'TEAM_BASED';
+  scopeTargetIds?: string[];
+  teamSnapshot?: string;
+  coverageType: 'PLANNED' | 'EMERGENCY';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  coverageMode: 'FULL_TRANSFER' | 'SHARED_ACCESS' | 'VIEW_ONLY' | 'READ_ONLY';
+  coverageImpact: 'CHATS_ONLY' | 'CONTACTS_AND_CHATS' | 'FULL_WORKSPACE';
+  startTime: string; // ISO String
+  endTime?: string; // ISO String
+  status: 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+  effectiveStatus: 'PENDING' | 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'SCHEDULED';
+  approvalStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+  approvedBy?: string;
+  approvedDate?: string;
+  extendedBy?: string;
+  extendedDate?: string;
+  extensionReason?: string;
+  reason?: string;
+  coverageNotes?: string;
+  attachmentUrl?: string;
+  createdBy: string;
+  createdDate: string;
+  revokedBy?: string;
+  revokedDate?: string;
+  coverageVersion: number;
+  isDeleted: boolean;
+  deletedBy?: string;
+  deletedDate?: string;
+  primaryBackupId?: string;
+  secondaryBackupId?: string;
+  managerId?: string;
+  routingLockId?: string;
+}
+
+export interface CoverageAudit {
+  id?: string;
+  tenantId: string;
+  workspaceId: string;
+  coverageId: string;
+  action: string;
+  whoId: string;
+  timestamp: string;
 }
 
 export interface FieldMappingSchema {
@@ -88,6 +142,15 @@ export interface Connector {
     cursor?: string;
     pageSize?: number;
   }): Promise<MessagePage>;
+
+  // Coverage Management
+  supportsCoverage?: boolean;
+  fetchCoverageTransfers?(params: { tenantId: string; workspaceId?: string }): Promise<CoverageTransfer[]>;
+  createCoverageTransfer?(coverage: CoverageTransfer): Promise<boolean>;
+  revokeCoverageTransfer?(id: string, revokedBy: string): Promise<boolean>;
+  approveCoverageTransfer?(id: string, approvedBy: string): Promise<boolean>;
+  extendCoverageTransfer?(id: string, newEndTime: string, extendedBy: string, reason?: string): Promise<boolean>;
+  expireCoverageTransfers?(): Promise<number>;
 
   sendMessage(params: {
     recipientPhone: string;

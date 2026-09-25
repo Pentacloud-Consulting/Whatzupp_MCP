@@ -2,9 +2,11 @@
 
 // src/components/auth/AuthProvider.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 export interface UserSession {
   userId: string;
+  id?: string;
   email: string;
   fullName: string;
   tenantId: string | null;
@@ -34,6 +36,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const pathname = usePathname();
 
   const fetchSession = async () => {
     try {
@@ -45,11 +48,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await res.json();
         if (data.success && data.user) {
           setUser(data.user);
+          try { localStorage.setItem('wz_user_session', JSON.stringify(data.user)); } catch (e) {}
         } else {
           setUser(null);
+          try { localStorage.removeItem('wz_user_session'); } catch (e) {}
         }
       } else {
         setUser(null);
+        try { localStorage.removeItem('wz_user_session'); } catch (e) {}
       }
     } catch {
       setUser(null);
@@ -59,8 +65,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    try {
+      const cached = localStorage.getItem('wz_user_session');
+      if (cached) {
+        setUser(JSON.parse(cached));
+      }
+    } catch (e) {}
     fetchSession();
-  }, []);
+  }, [pathname]);
 
   const login = (session: UserSession) => {
     setUser(session);

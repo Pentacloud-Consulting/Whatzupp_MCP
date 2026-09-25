@@ -93,13 +93,8 @@ export default function SignupPage() {
         
         {/* Logo Header */}
         <div className="text-center mb-8 space-y-2">
-          <Link href="/" className="inline-flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#25D366] to-[#128C7E] flex items-center justify-center shadow-lg shadow-[#25D366]/20">
-              <MessageSquare size={20} className="text-white" />
-            </div>
-            <span className="font-[Syne] font-extrabold text-2xl tracking-tight text-white">
-              WhatZupp <span className="text-[#25D366] text-xs font-semibold px-2 py-0.5 rounded-full border border-[#25D366]/30 bg-[#25D366]/10 ml-1">SaaS</span>
-            </span>
+          <Link href="/" className="inline-flex items-center justify-center mb-2">
+            <img src="/logo_final.png" alt="WhatZupp Logo" className="w-[230px] h-auto object-contain drop-shadow-lg" />
           </Link>
           <h1 className="font-[Syne] text-2xl font-bold text-white pt-2">
             Request Enterprise Tenant Workspace

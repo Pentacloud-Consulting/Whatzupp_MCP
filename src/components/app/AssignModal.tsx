@@ -119,6 +119,23 @@ export default function AssignModal({ isOpen, onClose, contacts, workspaceId, on
               </div>
             ) : (
               <div className="space-y-2">
+                <label className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${selectedUserId === 'unassigned' ? 'border-blue-500 bg-blue-50/50 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}>
+                  <input
+                    type="radio"
+                    name="assignee"
+                    className="text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    checked={selectedUserId === 'unassigned'}
+                    onChange={() => setSelectedUserId('unassigned')}
+                  />
+                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                    <Users size={14} className="text-slate-500" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-slate-900">Unassigned</div>
+                    <div className="text-[10px] font-semibold text-slate-500">Remove owner from contacts</div>
+                  </div>
+                </label>
+                
                 {users.map(u => (
                   <label key={u.id} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${selectedUserId === u.id ? 'border-blue-500 bg-blue-50/50 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}>
                     <input
@@ -128,14 +145,17 @@ export default function AssignModal({ isOpen, onClose, contacts, workspaceId, on
                       checked={selectedUserId === u.id}
                       onChange={() => setSelectedUserId(u.id)}
                     />
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-700 text-xs shrink-0">
+                      {u.fullName.charAt(0).toUpperCase()}
+                    </div>
                     <div>
                       <div className="text-sm font-bold text-slate-900">{u.fullName}</div>
-                      <div className="text-[10px] font-semibold text-slate-500">{u.role}</div>
+                      <div className="text-[10px] font-semibold text-slate-500">{u.role.replace('_', ' ')}</div>
                     </div>
                   </label>
                 ))}
                 {users.length === 0 && !loading && (
-                  <p className="text-xs text-slate-500">No users found in your tenant.</p>
+                  <p className="text-xs text-slate-500 mt-2 px-1">No users found in your tenant.</p>
                 )}
               </div>
             )}
@@ -153,10 +173,10 @@ export default function AssignModal({ isOpen, onClose, contacts, workspaceId, on
           <button
             onClick={handleAssign}
             disabled={saving || !selectedUserId}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-xs font-extrabold shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 hover:shadow-blue-500/25"
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-xs font-extrabold shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${selectedUserId === 'unassigned' ? 'bg-rose-600 hover:bg-rose-700 hover:shadow-rose-500/25' : 'bg-blue-600 hover:bg-blue-700 hover:shadow-blue-500/25'}`}
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-            <span>Assign {contacts.length} {contacts.length === 1 ? 'Contact' : 'Contacts'}</span>
+            <span>{selectedUserId === 'unassigned' ? 'Unassign' : 'Assign'} {contacts.length} {contacts.length === 1 ? 'Contact' : 'Contacts'}</span>
           </button>
         </div>
       </motion.div>

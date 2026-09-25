@@ -114,7 +114,7 @@ export default function TemplateBuilder({ onClose, onSuccess }: TemplateBuilderP
       components,
       workspaceId: activeWorkspace?.id || 'default_ws',
       workspaceType: activeWorkspace?.type || 'SALES_CLOUD',
-      createdBy: user?.id || 'unknown_user',
+      createdBy: user?.userId || user?.id || 'unknown_user',
       isDraft
     };
   };

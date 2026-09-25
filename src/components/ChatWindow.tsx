@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ChevronLeft, MoreVertical, Search, Paperclip, Mic, Phone, Video, X, Info, Reply, Copy, Forward, Pin, Star, Trash2, Smile, Cloud, Zap, Loader2, Check, Download, Tag, Plus } from 'lucide-react';
+import { Send, ChevronLeft, MoreVertical, Search, Paperclip, Mic, Phone, Video, X, Info, Reply, Copy, Forward, Pin, Star, Trash2, Smile, Cloud, Zap, Loader2, Check, Download, Tag, Plus, ShieldCheck } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 import { Contact, Message, MessageStatus } from '@/types';
 import { useWorkspace } from '@/components/workspace/WorkspaceProvider';
@@ -533,6 +533,37 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </div>
       </div>
+
+      {/* ═══ COVERAGE TIMER BANNER ═══ */}
+      {contact.isCovered && state.profile?.id !== contact.originalAssigneeId && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-emerald-500 text-white px-5 py-2.5 flex items-center justify-between text-xs shadow-md relative overflow-hidden z-20 shrink-0"
+        >
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay"></div>
+          <div className="flex items-center gap-3 relative z-10">
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/30 backdrop-blur-md">
+              <ShieldCheck size={16} className="text-white" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-extrabold text-[13px] tracking-wide text-white">Temporary Coverage Active</span>
+              <span className="text-emerald-50 font-medium text-[11px]">
+                You are handling this chat on behalf of the original owner.
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-col items-end relative z-10">
+            <span className="text-[10px] font-bold text-emerald-100 uppercase tracking-wider mb-0.5">Coverage Ends In</span>
+            <div className="flex items-center gap-1.5 bg-black/15 px-2.5 py-1 rounded-md border border-white/20 shadow-inner">
+              <Zap size={12} className="text-emerald-300" />
+              <span className="font-bold tabular-nums text-[13px] tracking-wider">
+                {contact.coverageEndTime ? new Date(contact.coverageEndTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Emergency Mode'}
+              </span>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Pinned Message Bar */}
       {activePinnedMsg && (

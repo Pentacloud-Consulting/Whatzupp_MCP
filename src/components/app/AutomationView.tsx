@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useWorkspace } from '@/components/workspace/WorkspaceProvider';
 import { Zap, Save, Trash2, Pencil, PlayCircle, PauseCircle, RotateCcw, Eye } from 'lucide-react';
 import NativeJourneyBuilder from '@/components/automation/NativeJourneyBuilder';
+import JourneyBuilderV2 from '@/components/automationV2/JourneyBuilderV2';
 
 interface JourneyItem {
   id: string;
@@ -19,7 +20,7 @@ export default function AutomationView() {
   const { activeWorkspace, state } = useWorkspace();
   const [journeys, setJourneys] = useState<JourneyItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState<'list' | 'builder'>('list');
+  const [activeView, setActiveView] = useState<'list' | 'builder' | 'builder_v2'>('list');
   const [editingJourneyId, setEditingJourneyId] = useState<string | null>(null);
 
   const fetchJourneys = useCallback(async () => {
@@ -76,15 +77,28 @@ export default function AutomationView() {
     setActiveView('builder');
   };
 
+  const openBuilderV2 = (journeyId: string | null) => {
+    setEditingJourneyId(journeyId);
+    setActiveView('builder_v2');
+  };
+
   const getWorkspaceName = (wsId: string) => {
     const ws = state.workspaces.find((w) => w.id === wsId);
     return ws?.name || wsId || '—';
   };
 
-  // ── Builder View ──
   if (activeView === 'builder') {
     return (
       <NativeJourneyBuilder
+        journeyId={editingJourneyId}
+        onClose={() => setActiveView('list')}
+      />
+    );
+  }
+
+  if (activeView === 'builder_v2') {
+    return (
+      <JourneyBuilderV2
         journeyId={editingJourneyId}
         onClose={() => setActiveView('list')}
       />
@@ -106,12 +120,20 @@ export default function AutomationView() {
               <p className="text-sm text-slate-500">Design WhatsApp messaging journeys</p>
             </div>
           </div>
-          <button
-            onClick={() => openBuilder(null)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-lg text-sm font-semibold shadow hover:bg-slate-800 transition-colors"
-          >
-            <Save size={16} /> New Journey
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => openBuilder(null)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold shadow-sm hover:bg-slate-50 transition-colors"
+            >
+              <Save size={16} /> New Legacy Journey
+            </button>
+            <button
+              onClick={() => openBuilderV2(null)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-lg text-sm font-semibold shadow hover:bg-slate-800 transition-colors"
+            >
+              <Zap size={16} className="text-emerald-400" /> New Enterprise Journey
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -129,12 +151,20 @@ export default function AutomationView() {
             <p className="text-sm text-slate-500 mb-6 max-w-sm">
               Create your first journey to start automating WhatsApp conversations.
             </p>
-            <button
-              onClick={() => openBuilder(null)}
-              className="px-6 py-2.5 bg-slate-900 text-white rounded-lg text-sm font-semibold shadow hover:bg-slate-800 transition-colors"
-            >
-              Create your first journey
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => openBuilder(null)}
+                className="px-6 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold shadow-sm hover:bg-slate-50 transition-colors"
+              >
+                Create Legacy Journey
+              </button>
+              <button
+                onClick={() => openBuilderV2(null)}
+                className="px-6 py-2.5 bg-slate-900 text-white rounded-lg text-sm font-semibold shadow hover:bg-slate-800 transition-colors"
+              >
+                Create Enterprise Journey
+              </button>
+            </div>
           </div>
         ) : (
           /* ── Table ── */

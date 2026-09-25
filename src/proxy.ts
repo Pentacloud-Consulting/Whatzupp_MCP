@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // CORS Middleware with complete header permissions including Localtunnel bypass headers
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Handle CORS for API & JB Activity routes

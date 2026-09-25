@@ -5,7 +5,7 @@
 // Authentication removed — app is integrated directly with SFMC
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, MessageSquare, Users2, Send, LayoutTemplate, Target, BarChart3, Cloud, CircleDot, Settings, Crown, HelpCircle, Shield, LogOut, Bell, RefreshCw, Tag, FolderKanban, Phone } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Users2, Send, LayoutTemplate, Target, BarChart3, Cloud, CircleDot, Settings, Crown, HelpCircle, Shield, LogOut, Bell, RefreshCw, Tag, FolderKanban, Phone, ShieldCheck, Zap } from 'lucide-react';
 import WorkspaceSwitcher from '@/components/workspace/WorkspaceSwitcher';
 import { useWorkspace } from '@/components/workspace/WorkspaceProvider';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -24,6 +24,8 @@ import SalesCloudView from '@/components/app/SalesCloudView';
 import LabelsView from '@/components/app/LabelsView';
 import ListsView from '@/components/app/ListsView';
 import UsersView from '@/components/app/UsersView';
+import CoverageDashboard from '@/components/app/CoverageDashboard';
+import ConversationFlowsView from '@/components/conversationFlows/ConversationFlowsView';
 import type { AppScreen } from '@/types/workspace';
 
 class ViewErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: string }> {
@@ -71,16 +73,18 @@ const NAV_ITEMS: { key: AppScreen; label: string; icon: React.ReactNode; isGreen
   { key: 'templates', label: 'Campaign Templates', icon: <LayoutTemplate size={19} /> },
   { key: 'calls', label: 'Call History', icon: <Phone size={19} /> },
   { key: 'automation', label: 'Automation', icon: <Target size={19} /> },
+  { key: 'conversation-flows', label: 'Conversation Flows', icon: <Zap size={19} /> },
   { key: 'analytics', label: 'Analytics', icon: <BarChart3 size={19} /> },
   { key: 'salescloud', label: 'Sales Cloud', icon: <Cloud size={19} />, isGreenAccent: true },
   { key: 'sfmc', label: 'SFMC', icon: <CircleDot size={19} /> },
+  { key: 'coverage', label: 'Coverage', icon: <ShieldCheck size={19} /> },
   { key: 'users', label: 'Users & Teams', icon: <Users2 size={19} /> },
   { key: 'settings', label: 'Settings', icon: <Settings size={19} /> },
 ];
 
 export default function AppShell() {
   const { state, setActiveScreen, activeWorkspace, activeContacts } = useWorkspace();
-  const { user, isSuperAdmin, hasWorkspacePermission, logout } = useAuth();
+  const { user, isSuperAdmin, hasWorkspacePermission, logout, isLoading: isAuthLoading } = useAuth();
   const [isMobile, setIsMobile] = useState(false);
   const [telemetry, setTelemetry] = useState({
     totalConversations: 0,
@@ -187,16 +191,16 @@ export default function AppShell() {
     if (item.key === 'sfmc' && activeWorkspace?.type === 'salescloud') return false;
     if (item.key === 'salescloud' && activeWorkspace?.type === 'sfmc') return false;
     
-    if (item.key === 'users' && user?.role !== 'TENANT_ADMIN') return false;
-    if (item.key === 'settings' && user?.role !== 'TENANT_ADMIN') return false;
+    if (item.key === 'users' && user?.role !== 'TENANT_ADMIN' && user?.role !== 'SUPER_ADMIN') return false;
+    if (item.key === 'settings' && user?.role !== 'TENANT_ADMIN' && user?.role !== 'SUPER_ADMIN') return false;
 
     return true;
   });
 
-  // Derive display name from active workspace or session user
-  const rawName = user?.fullName || activeWorkspace?.name || 'Workspace User';
+  // Derive display name from session user or fallback
+  const rawName = user?.fullName || (isAuthLoading ? 'Authenticating...' : 'Waseem');
   const displayName = rawName.replace(/\s*\([^)]*\)/g, '').trim();
-  const initials = displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'WA';
+  const initials = isAuthLoading && !user ? '...' : (displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'MW');
 
   const getRoleDisplayName = (role: string | undefined) => {
     switch (role) {
@@ -204,15 +208,15 @@ export default function AppShell() {
       case 'TENANT_ADMIN': return 'Tenant Admin';
       case 'MANAGER': return 'Manager';
       case 'AGENT': return 'Agent';
-      default: return 'Workspace User';
+      default: return isAuthLoading ? 'Authenticating...' : 'Super Admin';
     }
   };
 
   const roleDisplayName = getRoleDisplayName(user?.role);
-  const companyName = user?.tenantName || 'Enterprise Tenant';
-  const roleDisplayString = user?.role === 'SUPER_ADMIN' 
-    ? 'Super Admin'
-    : `${roleDisplayName} • ${companyName}`;
+  const companyName = user?.tenantName || 'WhatZupp Platform';
+  const roleDisplayString = (user?.role === 'SUPER_ADMIN' || (!user && !isAuthLoading))
+    ? 'Super Admin • WhatZupp Platform'
+    : isAuthLoading && !user ? 'Authenticating...' : `${roleDisplayName} • ${companyName}`;
 
   const renderWorkspaceBadges = () => {
     if (user?.role === 'SUPER_ADMIN') {
@@ -271,7 +275,9 @@ export default function AppShell() {
       case 'fast-reply': return <FastReplyView />;
       case 'labels': return <LabelsView />;
       case 'lists': return <ListsView />;
-      case 'users': return user?.role === 'TENANT_ADMIN' ? <UsersView /> : <DashboardView />;
+      case 'coverage': return <CoverageDashboard />;
+      case 'conversation-flows': return <ConversationFlowsView />;
+      case 'users': return (user?.role === 'TENANT_ADMIN' || user?.role === 'SUPER_ADMIN') ? <UsersView /> : <DashboardView />;
       default: return <DashboardView />;
     }
   };
@@ -288,8 +294,8 @@ export default function AppShell() {
           }}
         >
           {/* 1. Top Brand Logo */}
-          <div className="flex items-center justify-center px-4 pt-6 pb-5 shrink-0">
-            <img src="/logo_final.png" alt="WhatZupp Logo" className="w-[180px] h-auto object-contain shrink-0 drop-shadow-lg" />
+          <div className="flex items-center justify-center px-3 pt-6 pb-5 shrink-0">
+            <img src="/logo_final.png" alt="WhatZupp Logo" className="w-[200px] h-auto object-contain shrink-0 drop-shadow-lg" />
           </div>
 
           {/* 2. Navigation Menu Links List */}

@@ -4,7 +4,7 @@
 // Chat screen — Zone 2 ChatList (420px) + Zone 3 ChatWindow (flexible) + Zone 4 CrmIntelligencePanel (380px)
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Zap, X, MessageSquare } from 'lucide-react';
+import { Zap, X, MessageSquare, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ChatList from '@/components/ChatList';
 import ChatWindow from '@/components/ChatWindow';
@@ -75,6 +75,9 @@ export default function ChatsView() {
             avatar: wc.avatar || backendMatch?.avatar,
             online: undefined,
             lastSeen: backendMatch?.lastSeen,
+            isCovered: wc.isCovered,
+            originalAssigneeId: wc.originalAssigneeId,
+            coverageEndTime: wc.coverageEndTime,
           } as Contact;
         });
       }
@@ -83,22 +86,7 @@ export default function ChatsView() {
     return allBackendContacts;
   }, [workspaceContacts, allBackendContacts, activeWorkspace?.id]);
 
-  // Auto-select initial contact (Mohamed Waseem) if none selected
-  useEffect(() => {
-    if (!selectedContact) {
-      if (filteredContacts.length > 0) {
-        setSelectedContact(filteredContacts[0]);
-      } else {
-        setSelectedContact({
-          id: 'contact-mw-1',
-          name: 'Mohamed Waseem',
-          phoneNumber: '+91 99523 74972',
-          online: false,
-          lastSeen: 'offline',
-        });
-      }
-    }
-  }, [filteredContacts, selectedContact]);
+  // Removed forced auto-select so users can see the default workspace view
 
   // Deep Link: Select contact by phone via custom event
   useEffect(() => {
@@ -164,10 +152,8 @@ export default function ChatsView() {
         const phoneId = data.env?.phoneNumberId || data.phoneNumberId || data.config?.phoneNumberId;
         if (token && phoneId) {
           const autoConfig = { accessToken: token, phoneNumberId: phoneId };
-          if (!savedConfig) {
-            setConfig(autoConfig);
-            localStorage.setItem('whatsappConfig', JSON.stringify(autoConfig));
-          }
+          setConfig(autoConfig);
+          localStorage.setItem('whatsappConfig', JSON.stringify(autoConfig));
         }
       })
       .catch(() => {});
@@ -187,7 +173,10 @@ export default function ChatsView() {
     fetch(`/api/workspaces/${wsId}/contacts`, {
       headers: { 'X-Workspace-Key': wsKey }
     })
-      .then(res => res.json())
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        return res.json();
+      })
       .then(data => {
         if (data.contacts && Array.isArray(data.contacts)) {
           const wsContacts: Contact[] = data.contacts.map((c: any) => ({
@@ -200,7 +189,10 @@ export default function ChatsView() {
 
           if (!isSalesCloud) {
             fetch('/api/sfmc/messages')
-              .then(r => r.json())
+              .then(async (r) => {
+                if (!r.ok) throw new Error(`HTTP error ${r.status}`);
+                return r.json();
+              })
               .then(msgData => {
                 if (msgData.messages && Array.isArray(msgData.messages)) {
                   const initialMessages: Record<string, Message[]> = {};
@@ -617,14 +609,31 @@ export default function ChatsView() {
             </AnimatePresence>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-            <div className="w-20 h-20 rounded-3xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mb-4 text-[#00C853]">
-              <MessageSquare size={32} />
-            </div>
-            <h3 className="text-xl font-black text-slate-900">WhatZupp Enterprise Workspace</h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-xs">
-              Select a contact conversation from the left to view messages and CRM intelligence.
-            </p>
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-[#F0F2F5] relative">
+            <div className="absolute inset-0 bg-[url('https://static.whatsapp.net/rsrc.php/v3/yl/r/1-kx0OqGgqE.png')] opacity-10 bg-repeat bg-center" />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.4, type: "spring" }}
+              className="relative z-10 flex flex-col items-center max-w-md mx-auto"
+            >
+              <div 
+                className="mb-10 relative flex items-center justify-center px-12 py-8 rounded-3xl shadow-2xl border border-emerald-950/20"
+                style={{ background: 'linear-gradient(180deg, #01211C 0%, #032C25 50%, #011613 100%)' }}
+              >
+                <img src="/logo_final.png" alt="WhatZupp Workspace" className="w-[220px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.4)]" />
+              </div>
+              <h2 className="text-3xl font-light text-slate-700 mb-4 tracking-tight">WhatZupp for Windows</h2>
+              <p className="text-[14px] text-slate-500 mb-10 leading-relaxed font-medium px-4">
+                Send and receive messages without keeping your phone online.<br/>
+                Use WhatZupp on up to 4 linked devices and 1 phone.
+              </p>
+              
+              <div className="flex items-center gap-2 mt-auto text-[11px] text-slate-400 font-medium">
+                <ShieldCheck size={14} className="text-slate-400" />
+                <span>End-to-end encrypted across your entire workspace</span>
+              </div>
+            </motion.div>
           </div>
         )}
       </div>

@@ -23,15 +23,19 @@ export async function POST(
     const body = await request.json();
     const { contactIds, assigneeId } = body;
     
-    if (!Array.isArray(contactIds) || contactIds.length === 0 || !assigneeId) {
+    if (!Array.isArray(contactIds) || contactIds.length === 0 || assigneeId === undefined || assigneeId === null) {
       return NextResponse.json({ error: 'contactIds array and assigneeId are required' }, { status: 400 });
     }
+
+    const isUnassigning = assigneeId === '' || assigneeId === 'unassigned' || assigneeId === 'none';
+    const targetAssigneeId = isUnassigning ? 'unassigned' : assigneeId;
+    const targetOwnerUserId = isUnassigning ? null : auth.user!.userId;
 
     if (!auth.connector!.upsertContactAssignment) {
       return NextResponse.json({ error: 'This connector does not support enterprise assignments natively.' }, { status: 400 });
     }
 
-    const tenantId = auth.user?.tenantId;
+    const tenantId = auth.user?.tenantId || 'tenant-1';
     if (!tenantId) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
@@ -42,12 +46,12 @@ export async function POST(
         tenantId,
         workspaceId,
         contactId,
-        ownerUserId: auth.user!.userId, // For mock simplicity, we set owner to the admin doing the assigning. In true SF, we'd fetch current owner.
-        primaryAssigneeId: assigneeId,
-        createdByUserId: auth.user!.userId, // Usually we'd keep original, this is simplified for mock.
+        ownerUserId: targetOwnerUserId || undefined,
+        primaryAssigneeId: targetAssigneeId,
+        createdByUserId: auth.user!.userId,
         assignedAt: new Date().toISOString(),
         assignedBy: auth.user!.userId,
-        status: 'Active',
+        status: isUnassigning ? 'Unassigned' : 'Active',
         workspaceType: auth.connector!.workspaceType
       });
 

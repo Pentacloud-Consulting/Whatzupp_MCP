@@ -1,9 +1,10 @@
-import { Connector, MessagePage, WorkspaceContactResult, FieldMappingSchema, WorkspaceMessage, ContactAssignment, AssignmentAudit } from './connectorInterface';
+import { Connector, MessagePage, WorkspaceContactResult, FieldMappingSchema, WorkspaceMessage, ContactAssignment, AssignmentAudit, CoverageTransfer } from './connectorInterface';
 import { getSalesCloudAccessToken, invalidateSalesCloudToken } from '../salesCloudAuth';
 import { sendWhatsAppMessage } from '../../services/whatsappService';
 import { emitRealtimeMessage } from '../realtime';
-import { setConversationOwner } from '../storage/kvStore';
+import { setConversationOwner, getConfig, setConfig } from '../storage/kvStore';
 import { normalizePhoneNumber } from '../../utils/phone';
+import { CoverageRuntimeResolver } from '../coverage/coverageResolver';
 
 export class SalesCloudConnector implements Connector {
   public id = 'salescloud-ws-1';
@@ -57,24 +58,24 @@ export class SalesCloudConnector implements Connector {
           results = results.filter(c => c.name.toLowerCase().includes(q) || (c.phoneNumber && c.phoneNumber.includes(q)));
         }
 
-        // Apply enterprise ownership filtering
-        if (params.tenantId && params.userRole !== 'SUPER_ADMIN') {
-          results = results.map(c => {
-            const assignment = this.fallbackAssignments.find(a => a.contactId === c.id && a.tenantId === params.tenantId);
-            return {
-              ...c,
-              ownerUserId: assignment?.ownerUserId,
-              primaryAssigneeId: assignment?.primaryAssigneeId,
-              createdByUserId: assignment?.createdByUserId,
-              teamId: assignment?.teamId,
-            };
-          });
+        const allAssignments = (await getConfig('sc_assignments') as ContactAssignment[]) || [];
+        // Apply enterprise ownership assignment mapping
+        results = results.map(c => {
+          const assignment = allAssignments.find(a => a.contactId === c.id && (!params.tenantId || a.tenantId === params.tenantId));
+          const isUnassigned = !assignment || !assignment.primaryAssigneeId || assignment.primaryAssigneeId === 'unassigned' || assignment.primaryAssigneeId === 'none';
+          return {
+            ...c,
+            ownerUserId: isUnassigned ? undefined : assignment?.ownerUserId,
+            primaryAssigneeId: isUnassigned ? undefined : assignment?.primaryAssigneeId,
+            createdByUserId: assignment?.createdByUserId || c.createdByUserId,
+            teamId: assignment?.teamId || c.teamId,
+          };
+        });
 
-          if (params.userRole === 'AGENT' || params.userRole === 'VIEWER') {
-            results = results.filter(c => c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
-          } else if (params.userRole === 'MANAGER') {
-            results = results.filter(c => (params.teamId && c.teamId === params.teamId) || c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
-          }
+        if (params.userRole === 'AGENT' || params.userRole === 'VIEWER') {
+          results = results.filter(c => c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
+        } else if (params.userRole === 'MANAGER') {
+          results = results.filter(c => (params.teamId && c.teamId === params.teamId) || c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
         }
 
         return results.slice(0, limit);
@@ -147,28 +148,54 @@ export class SalesCloudConnector implements Connector {
         });
       }
 
-      // Apply enterprise ownership filtering to real Salesforce results
-      if (params.tenantId && params.userRole !== 'SUPER_ADMIN') {
-        let finalResults = results.map(c => {
-          const assignment = this.fallbackAssignments.find(a => a.contactId === c.id && a.tenantId === params.tenantId);
-          return {
-            ...c,
-            ownerUserId: assignment?.ownerUserId,
-            primaryAssigneeId: assignment?.primaryAssigneeId,
-            createdByUserId: assignment?.createdByUserId,
-            teamId: assignment?.teamId,
-          };
-        });
+      const allAssignments = (await getConfig('sc_assignments') as ContactAssignment[]) || [];
+      // Apply enterprise ownership assignment mapping to real Salesforce results
+      let finalResults = await Promise.all(results.map(async c => {
+        const assignment = allAssignments.find(a => a.contactId === c.id && (!params.tenantId || a.tenantId === params.tenantId));
+        const isUnassigned = !assignment || !assignment.primaryAssigneeId || assignment.primaryAssigneeId === 'unassigned' || assignment.primaryAssigneeId === 'none';
+        
+        let ownerId = isUnassigned ? undefined : assignment?.ownerUserId;
+        let assigneeId = isUnassigned ? undefined : assignment?.primaryAssigneeId;
+        
+        // --- PHASE 4: COVERAGE OVERLAY INTERCEPTOR ---
+        // If there's an assignee, check if they have active coverage
+        let originalAssigneeId = undefined;
+        let isCovered = false;
+        let coverageEndTime = undefined;
 
-        if (params.userRole === 'AGENT' || params.userRole === 'VIEWER') {
-          finalResults = finalResults.filter(c => c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
-        } else if (params.userRole === 'MANAGER') {
-          finalResults = finalResults.filter(c => (params.teamId && c.teamId === params.teamId) || c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
+        if (assigneeId && params.tenantId) {
+          const coverage = await CoverageRuntimeResolver.resolveOwnership(params.tenantId, assigneeId, c.id);
+          if (coverage.isCovered) {
+            originalAssigneeId = assigneeId;
+            assigneeId = coverage.resolvedOwnerId;
+            isCovered = true;
+            coverageEndTime = coverage.endTime;
+            // Also override the main owner if it was set to the original assignee
+            if (ownerId === assignment?.primaryAssigneeId) {
+              ownerId = coverage.resolvedOwnerId;
+            }
+          }
         }
-        return finalResults.slice(0, limit);
-      }
+        // ---------------------------------------------
 
-      return results.slice(0, limit);
+        return {
+          ...c,
+          ownerUserId: ownerId,
+          primaryAssigneeId: assigneeId,
+          createdByUserId: assignment?.createdByUserId || c.createdByUserId,
+          teamId: assignment?.teamId || c.teamId,
+          originalAssigneeId,
+          isCovered,
+          coverageEndTime
+        };
+      }));
+
+      if (params.userRole === 'AGENT' || params.userRole === 'VIEWER') {
+        finalResults = finalResults.filter(c => c.primaryAssigneeId === params.userId || c.originalAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
+      } else if (params.userRole === 'MANAGER') {
+        finalResults = finalResults.filter(c => (params.teamId && c.teamId === params.teamId) || c.primaryAssigneeId === params.userId || c.originalAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
+      }
+      return finalResults.slice(0, limit);
     } catch (err) {
       console.warn('[SalesCloudConnector] fetchContacts failed, using fallback:', err);
       let results = [...this.fallbackContacts];
@@ -177,50 +204,298 @@ export class SalesCloudConnector implements Connector {
         results = results.filter(c => c.name.toLowerCase().includes(q) || (c.phoneNumber && c.phoneNumber.includes(q)));
       }
 
-      // Apply enterprise ownership filtering to fallback
-      if (params.tenantId && params.userRole !== 'SUPER_ADMIN') {
-        results = results.map(c => {
-          const assignment = this.fallbackAssignments.find(a => a.contactId === c.id && a.tenantId === params.tenantId);
-          return {
-            ...c,
-            ownerUserId: assignment?.ownerUserId,
-            primaryAssigneeId: assignment?.primaryAssigneeId,
-            createdByUserId: assignment?.createdByUserId,
-            teamId: assignment?.teamId,
-          };
-        });
+      const allAssignmentsFallback = (await getConfig('sc_assignments') as ContactAssignment[]) || [];
+      // Apply enterprise ownership assignment mapping to fallback
+      let asyncResults = await Promise.all(results.map(async c => {
+        const assignment = allAssignmentsFallback.find(a => a.contactId === c.id && (!params.tenantId || a.tenantId === params.tenantId));
+        const isUnassigned = !assignment || !assignment.primaryAssigneeId || assignment.primaryAssigneeId === 'unassigned' || assignment.primaryAssigneeId === 'none';
 
-        if (params.userRole === 'AGENT' || params.userRole === 'VIEWER') {
-          results = results.filter(c => c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
-        } else if (params.userRole === 'MANAGER') {
-          results = results.filter(c => (params.teamId && c.teamId === params.teamId) || c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
+        let ownerId = isUnassigned ? undefined : assignment?.ownerUserId;
+        let assigneeId = isUnassigned ? undefined : assignment?.primaryAssigneeId;
+        
+        // --- PHASE 4: COVERAGE OVERLAY INTERCEPTOR (Fallback) ---
+        let originalAssigneeId = undefined;
+        let isCovered = false;
+        let coverageEndTime = undefined;
+
+        if (assigneeId && params.tenantId) {
+          const coverage = await CoverageRuntimeResolver.resolveOwnership(params.tenantId, assigneeId, c.id);
+          if (coverage.isCovered) {
+            originalAssigneeId = assigneeId;
+            assigneeId = coverage.resolvedOwnerId;
+            isCovered = true;
+            coverageEndTime = coverage.endTime;
+            if (ownerId === assignment?.primaryAssigneeId) {
+              ownerId = coverage.resolvedOwnerId;
+            }
+          }
         }
+        // ---------------------------------------------
+
+        return {
+          ...c,
+          ownerUserId: ownerId,
+          primaryAssigneeId: assigneeId,
+          createdByUserId: assignment?.createdByUserId || c.createdByUserId,
+          teamId: assignment?.teamId || c.teamId,
+          originalAssigneeId,
+          isCovered,
+          coverageEndTime
+        };
+      }));
+
+      if (params.userRole === 'AGENT' || params.userRole === 'VIEWER') {
+        asyncResults = asyncResults.filter(c => c.primaryAssigneeId === params.userId || c.originalAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
+      } else if (params.userRole === 'MANAGER') {
+        asyncResults = asyncResults.filter(c => (params.teamId && c.teamId === params.teamId) || c.primaryAssigneeId === params.userId || c.originalAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
       }
 
-      return results.slice(0, limit);
+      return asyncResults.slice(0, limit);
     }
   }
 
   // --- Enterprise Assignment Methods ---
   async fetchContactAssignments(params: { tenantId: string }): Promise<ContactAssignment[]> {
-    return this.fallbackAssignments.filter(a => a.tenantId === params.tenantId);
+    const allAssignments = (await getConfig('sc_assignments') as ContactAssignment[]) || [];
+    return allAssignments.filter(a => a.tenantId === params.tenantId);
   }
 
   async upsertContactAssignment(assignment: ContactAssignment): Promise<boolean> {
-    const existingIndex = this.fallbackAssignments.findIndex(
+    const isUnassigning = !assignment.primaryAssigneeId || assignment.primaryAssigneeId === 'unassigned' || assignment.primaryAssigneeId === 'none';
+    const cleanAssignment: ContactAssignment = {
+      ...assignment,
+      primaryAssigneeId: isUnassigning ? undefined : assignment.primaryAssigneeId,
+      ownerUserId: isUnassigning ? undefined : assignment.ownerUserId,
+      status: isUnassigning ? 'Unassigned' : (assignment.status || 'Active'),
+    };
+    const allAssignments = (await getConfig('sc_assignments') as ContactAssignment[]) || [];
+    const existingIndex = allAssignments.findIndex(
       a => a.contactId === assignment.contactId && a.tenantId === assignment.tenantId
     );
     if (existingIndex >= 0) {
-      this.fallbackAssignments[existingIndex] = { ...this.fallbackAssignments[existingIndex], ...assignment };
+      allAssignments[existingIndex] = cleanAssignment;
     } else {
-      this.fallbackAssignments.push({ ...assignment, id: `assign_${Date.now()}` });
+      allAssignments.push({ ...cleanAssignment, id: `assign_${Date.now()}` });
     }
+    await setConfig('sc_assignments', allAssignments);
     return true;
   }
 
   async logAssignmentAudit(audit: AssignmentAudit): Promise<boolean> {
-    this.fallbackAudits.push({ ...audit, id: `audit_${Date.now()}` });
+    const allAudits = (await getConfig('sc_audits') as AssignmentAudit[]) || [];
+    allAudits.push({ ...audit, id: `audit_${Date.now()}` });
+    await setConfig('sc_audits', allAudits);
     return true;
+  }
+  // -------------------------------------
+
+  // --- Enterprise Coverage Management ---
+  supportsCoverage = true;
+  
+  async fetchCoverageTransfers(params: { tenantId: string; workspaceId?: string }): Promise<CoverageTransfer[]> {
+    try {
+      const { access_token, instance_url } = await getSalesCloudAccessToken();
+      if (access_token.startsWith('mock-')) {
+        const allCoverages = (await getConfig('sc_coverages') as CoverageTransfer[]) || [];
+        return allCoverages.filter(c => c.tenantId === params.tenantId && (!params.workspaceId || c.workspaceId === params.workspaceId));
+      }
+
+      let soql = `SELECT Coverage_Id__c, Tenant_Id__c, Workspace_Id__c, Original_Owner_Id__c, Temporary_Owner_Id__c, Primary_Backup_Id__c, Manager_Id__c, Status__c, Approval_Status__c, Effective_Status__c, Start_Time__c, End_Time__c, Is_All_Contacts__c, Specific_Contact_Ids__c, Reason__c, Created_By__c FROM WhatZupp_Coverage_Transfer__c WHERE Tenant_Id__c = '${params.tenantId}'`;
+      if (params.workspaceId) {
+        soql += ` AND Workspace_Id__c = '${params.workspaceId}'`;
+      }
+
+      const res = await fetch(`${instance_url}/services/data/v59.0/query?q=${encodeURIComponent(soql)}`, {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+
+      if (!res.ok) throw new Error('Salesforce fetchCoverageTransfers query failed');
+      const data = await res.json();
+      
+      return (data.records || []).map((r: any) => ({
+        id: r.Coverage_Id__c,
+        tenantId: r.Tenant_Id__c,
+        workspaceId: r.Workspace_Id__c,
+        originalOwnerId: r.Original_Owner_Id__c,
+        temporaryOwnerId: r.Temporary_Owner_Id__c,
+        primaryBackupId: r.Primary_Backup_Id__c,
+        managerId: r.Manager_Id__c,
+        status: r.Status__c,
+        effectiveStatus: r.Effective_Status__c,
+        approvalStatus: r.Approval_Status__c,
+        startTime: r.Start_Time__c,
+        endTime: r.End_Time__c,
+        scopeType: r.Is_All_Contacts__c ? 'ALL_CONTACTS' : 'SELECTED_CONTACTS',
+        scopeTargetIds: r.Specific_Contact_Ids__c ? r.Specific_Contact_Ids__c.split(',') : [],
+        reason: r.Reason__c,
+        createdBy: r.Created_By__c,
+        createdAt: r.CreatedDate || new Date().toISOString()
+      }));
+    } catch (e) {
+      console.warn('[SalesCloudConnector] SF fetchCoverageTransfers failed, fallback to mock', e);
+      const allCoverages = (await getConfig('sc_coverages') as CoverageTransfer[]) || [];
+      return allCoverages.filter(c => c.tenantId === params.tenantId && (!params.workspaceId || c.workspaceId === params.workspaceId));
+    }
+  }
+
+  async createCoverageTransfer(coverage: CoverageTransfer): Promise<boolean> {
+    try {
+      const { access_token, instance_url } = await getSalesCloudAccessToken();
+      if (access_token.startsWith('mock-')) {
+        const allCoverages = (await getConfig('sc_coverages') as CoverageTransfer[]) || [];
+        allCoverages.push(coverage);
+        await setConfig('sc_coverages', allCoverages);
+        return true;
+      }
+
+      const payload = {
+        Coverage_Id__c: coverage.id,
+        Tenant_Id__c: coverage.tenantId,
+        Workspace_Id__c: coverage.workspaceId,
+        Original_Owner_Id__c: coverage.originalOwnerId,
+        Temporary_Owner_Id__c: coverage.temporaryOwnerId,
+        Primary_Backup_Id__c: coverage.primaryBackupId,
+        Secondary_Backup_Id__c: coverage.secondaryBackupId,
+        Manager_Id__c: coverage.managerId,
+        Status__c: coverage.status,
+        Effective_Status__c: coverage.effectiveStatus,
+        Approval_Status__c: coverage.approvalStatus,
+        Start_Time__c: coverage.startTime,
+        End_Time__c: coverage.endTime,
+        Is_All_Contacts__c: coverage.scopeType === 'ALL_CONTACTS',
+        Specific_Contact_Ids__c: coverage.scopeTargetIds?.join(',') || null,
+        Reason__c: coverage.reason,
+        Created_By__c: coverage.createdBy
+      };
+
+      const res = await fetch(`${instance_url}/services/data/v59.0/sobjects/WhatZupp_Coverage_Transfer__c/Coverage_Id__c/${coverage.id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Salesforce createCoverageTransfer failed');
+      return true;
+    } catch (e) {
+      console.warn('[SalesCloudConnector] SF createCoverageTransfer failed, fallback to mock', e);
+      const allCoverages = (await getConfig('sc_coverages') as CoverageTransfer[]) || [];
+      allCoverages.push(coverage);
+      await setConfig('sc_coverages', allCoverages);
+      return true;
+    }
+  }
+
+  async approveCoverageTransfer(id: string, approvedBy: string): Promise<boolean> {
+    try {
+      const { access_token, instance_url } = await getSalesCloudAccessToken();
+      if (access_token.startsWith('mock-')) {
+        const allCoverages = (await getConfig('sc_coverages') as CoverageTransfer[]) || [];
+        const index = allCoverages.findIndex(c => c.id === id);
+        if (index === -1) return false;
+        allCoverages[index].approvalStatus = 'APPROVED';
+        allCoverages[index].approvedBy = approvedBy;
+        allCoverages[index].approvedDate = new Date().toISOString();
+        const start = new Date(allCoverages[index].startTime).getTime();
+        if (start <= Date.now()) {
+          allCoverages[index].effectiveStatus = 'ACTIVE';
+          allCoverages[index].status = 'ACTIVE';
+        }
+        await setConfig('sc_coverages', allCoverages);
+        return true;
+      }
+
+      // 1. Fetch current to check startTime for auto-activation
+      let soql = `SELECT Start_Time__c FROM WhatZupp_Coverage_Transfer__c WHERE Coverage_Id__c = '${id}'`;
+      const curRes = await fetch(`${instance_url}/services/data/v59.0/query?q=${encodeURIComponent(soql)}`, {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      const data = await curRes.json();
+      if (!data.records || data.records.length === 0) return false;
+      const startTime = data.records[0].Start_Time__c;
+      const isActiveNow = new Date(startTime).getTime() <= Date.now();
+
+      const payload = {
+        Approval_Status__c: 'APPROVED',
+        Approved_By__c: approvedBy,
+        Approved_Date__c: new Date().toISOString(),
+        Status__c: isActiveNow ? 'ACTIVE' : 'PENDING',
+        Effective_Status__c: isActiveNow ? 'ACTIVE' : 'PENDING'
+      };
+
+      const res = await fetch(`${instance_url}/services/data/v59.0/sobjects/WhatZupp_Coverage_Transfer__c/Coverage_Id__c/${id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn('[SalesCloudConnector] SF approveCoverageTransfer failed, fallback', e);
+      return false; // For mock fallback, we would ideally just write to mock, but the initial mock check handles this.
+    }
+  }
+
+  async revokeCoverageTransfer(id: string, revokedBy: string): Promise<boolean> {
+    try {
+      const { access_token, instance_url } = await getSalesCloudAccessToken();
+      if (access_token.startsWith('mock-')) {
+        const allCoverages = (await getConfig('sc_coverages') as CoverageTransfer[]) || [];
+        const index = allCoverages.findIndex(c => c.id === id);
+        if (index === -1) return false;
+        allCoverages[index].status = 'REVOKED';
+        allCoverages[index].effectiveStatus = 'REVOKED';
+        allCoverages[index].revokedBy = revokedBy;
+        allCoverages[index].revokedDate = new Date().toISOString();
+        await setConfig('sc_coverages', allCoverages);
+        return true;
+      }
+
+      const payload = {
+        Status__c: 'REVOKED',
+        Effective_Status__c: 'REVOKED',
+        Revoked_By__c: revokedBy,
+        Revoked_Date__c: new Date().toISOString()
+      };
+      const res = await fetch(`${instance_url}/services/data/v59.0/sobjects/WhatZupp_Coverage_Transfer__c/Coverage_Id__c/${id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      return res.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async extendCoverageTransfer(id: string, newEndTime: string, extendedBy: string, reason?: string): Promise<boolean> {
+    try {
+      const { access_token, instance_url } = await getSalesCloudAccessToken();
+      if (access_token.startsWith('mock-')) {
+        const allCoverages = (await getConfig('sc_coverages') as CoverageTransfer[]) || [];
+        const index = allCoverages.findIndex(c => c.id === id);
+        if (index === -1) return false;
+        allCoverages[index].endTime = newEndTime;
+        allCoverages[index].extendedBy = extendedBy;
+        allCoverages[index].extendedDate = new Date().toISOString();
+        if (reason) allCoverages[index].extensionReason = reason;
+        await setConfig('sc_coverages', allCoverages);
+        return true;
+      }
+
+      const payload: any = {
+        End_Time__c: newEndTime,
+        Extended_By__c: extendedBy,
+        Extended_Date__c: new Date().toISOString()
+      };
+      if (reason) payload.Extension_Reason__c = reason;
+
+      const res = await fetch(`${instance_url}/services/data/v59.0/sobjects/WhatZupp_Coverage_Transfer__c/Coverage_Id__c/${id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      return res.ok;
+    } catch (e) {
+      return false;
+    }
   }
   // -------------------------------------
 

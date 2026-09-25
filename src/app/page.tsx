@@ -26,8 +26,7 @@ export default function SaaSLandingPage() {
       <nav className="relative z-50 border-b border-white/10 bg-[#090D16]/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <img src="/logo_final.png" alt="WhatZupp Logo" className="w-[140px] h-auto object-contain shrink-0 drop-shadow-lg" />
-            <span className="text-[#25D366] text-xs font-semibold px-2 py-0.5 rounded-full border border-[#25D366]/30 bg-[#25D366]/10">v2.0 SaaS</span>
+            <img src="/logo_final.png" alt="WhatZupp Logo" className="w-[210px] h-auto object-contain shrink-0 drop-shadow-lg" />
           </Link>
 
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-300">

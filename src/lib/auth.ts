@@ -12,12 +12,13 @@ const SESSION_DURATION = 7 * 24 * 60 * 60; // 7 days in seconds
 
 export interface SessionPayload {
   userId: string;
+  id?: string;
   email: string;
   fullName: string;
   tenantId: string | null;
   tenantCode?: string | null;
   tenantName?: string | null;
-  role: 'SUPER_ADMIN' | 'TENANT_ADMIN' | 'TENANT_USER';
+  role: 'SUPER_ADMIN' | 'TENANT_ADMIN' | 'MANAGER' | 'AGENT' | 'VIEWER' | 'TENANT_USER';
   workspacePermissions: string[];
   sso?: boolean;
   ssoPermissions?: string[];

@@ -18,6 +18,9 @@ export interface Contact {
     opportunityName?: string;
     ownerName?: string;
     lastSyncedAt?: string;
+    isCovered?: boolean;
+    originalAssigneeId?: string;
+    coverageEndTime?: string;
   }
   
   // Different statuses a message can have
@@ -161,6 +164,9 @@ export interface Contact {
     opportunityName?: string;
     ownerName?: string;
     lastSyncedAt?: string;
+    isCovered?: boolean;
+    originalAssigneeId?: string;
+    coverageEndTime?: string;
   }
   
   

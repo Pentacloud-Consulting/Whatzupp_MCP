@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     if (!hasDatabaseUrl() || session.tenantId?.startsWith('t-')) {
       const allMockUsers = [
-        { id: '1', fullName: session.fullName, email: session.email, role: session.role, status: 'ACTIVE', workspacePermissions: [{ workspaceType: 'SFMC' }] },
+        { id: session.userId || '1', fullName: session.fullName, email: session.email, role: session.role, status: 'ACTIVE', workspacePermissions: [{ workspaceType: 'SFMC' }] },
         ...getMockUsers()
       ];
       return NextResponse.json({

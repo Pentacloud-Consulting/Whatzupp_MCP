@@ -7,9 +7,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { MessageSquare, Mail, Lock, ArrowRight, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login, refreshSession } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +40,11 @@ export default function LoginPage() {
       if (!res.ok || !data.success) {
         setError(data.error || 'Login failed. Please verify credentials.');
       } else {
-        router.push('/dashboard');
+        if (data.user) {
+          login(data.user);
+        }
+        await refreshSession();
+        window.location.href = '/dashboard';
       }
     } catch (err: any) {
       setError(err.message || 'Network error occurred during login');
@@ -64,9 +70,8 @@ export default function LoginPage() {
         
         {/* Header */}
         <div className="text-center mb-8 space-y-2">
-          <Link href="/" className="inline-flex items-center gap-2 mb-2">
-            <img src="/logo_final.png" alt="WhatZupp Logo" className="w-[180px] h-auto object-contain drop-shadow-lg" />
-            <span className="text-[#25D366] text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-[#25D366]/30 bg-[#25D366]/10 uppercase tracking-wide">SaaS</span>
+          <Link href="/" className="inline-flex items-center justify-center mb-2">
+            <img src="/logo_final.png" alt="WhatZupp Logo" className="w-[230px] h-auto object-contain drop-shadow-lg" />
           </Link>
           <h1 className="font-[Syne] text-2xl font-bold text-white pt-2">
             Client & Admin Portal Login

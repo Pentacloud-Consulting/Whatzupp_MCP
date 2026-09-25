@@ -20,9 +20,16 @@ export async function GET(request: NextRequest) {
     const canAccessSalesCloud = isSuper || perms.includes('SALES_CLOUD');
     const canAccessSFMC = isSuper || perms.includes('SFMC');
 
+    const fetchParams = {
+      limit: 50,
+      tenantId: session?.tenantId || 'tenant-1',
+      userId: session?.userId || 'user-default',
+      userRole: session?.role || 'SUPER_ADMIN',
+    };
+
     const [scContacts, sfmcContacts] = await Promise.all([
-      canAccessSalesCloud ? salesCloudConnector.fetchContacts({ limit: 50 }).catch(() => []) : Promise.resolve([]),
-      canAccessSFMC ? sfmcConnector.fetchContacts({ limit: 50 }).catch(() => []) : Promise.resolve([]),
+      canAccessSalesCloud ? salesCloudConnector.fetchContacts(fetchParams).catch(() => []) : Promise.resolve([]),
+      canAccessSFMC ? sfmcConnector.fetchContacts(fetchParams).catch(() => []) : Promise.resolve([]),
     ]);
 
     const allWorkspaces = [

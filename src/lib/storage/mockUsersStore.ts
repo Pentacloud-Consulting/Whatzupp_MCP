@@ -1,7 +1,26 @@
 // src/lib/storage/mockUsersStore.ts
 
+const DEFAULT_MOCK_USERS = [
+  {
+    id: 'mock-1790249917377',
+    fullName: 'Mohamed Waseem',
+    email: 'waseem@pentacloudconsulting.com',
+    role: 'MANAGER',
+    status: 'ACTIVE',
+    workspacePermissions: [{ workspaceType: 'SFMC' }, { workspaceType: 'SALES_CLOUD' }],
+  },
+  {
+    id: 'mock-1790236181574',
+    fullName: 'Zuhaib',
+    email: 'zuhaib@pentacloud.com',
+    role: 'AGENT',
+    status: 'ACTIVE',
+    workspacePermissions: [{ workspaceType: 'SFMC' }, { workspaceType: 'SALES_CLOUD' }],
+  }
+];
+
 const globalForMock = globalThis as unknown as { __mockUsers: any[] | undefined };
-const globalMockUsers: any[] = globalForMock.__mockUsers ?? [];
+const globalMockUsers: any[] = globalForMock.__mockUsers ?? [...DEFAULT_MOCK_USERS];
 if (process.env.NODE_ENV !== 'production') globalForMock.__mockUsers = globalMockUsers;
 
 export function getMockUsers() {

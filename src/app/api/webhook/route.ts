@@ -9,6 +9,7 @@ import { workspaceRegistry } from '@/lib/connectors/workspaceRegistry';
 import { pushUnmatched, getConversationOwner, setConversationOwner } from '@/lib/storage/kvStore';
 import { normalizePhoneNumber } from '@/utils/phone';
 import { emitRealtimeMessage } from '@/lib/realtime';
+import { CoverageRuntimeResolver } from '@/lib/coverage/coverageResolver';
 
 // ----- Idempotency: Track processed wamids in-memory -----
 const processedWamids = new Set<string>();
@@ -261,13 +262,24 @@ export async function POST(request: Request) {
                         leadId: contact?.salesforceObjectType === 'Lead' ? contact.salesforceRecordId : undefined,
                         contactId: contact?.salesforceObjectType === 'Contact' ? contact.salesforceRecordId : undefined,
                       });
+                      // PHASE 5: Webhook Routing Integration (Explicit Routing Flow)
+                      let routedTo = contact?.primaryAssigneeId;
+                      if (routedTo && contact) {
+                         const tenantId = 'tenant-1'; // Mock single-tenant for webhook
+                         const coverage = await CoverageRuntimeResolver.resolveOwnership(tenantId, routedTo, contact.id || '');
+                         if (coverage.isCovered) {
+                            routedTo = coverage.resolvedOwnerId;
+                            console.log(`[webhook] COVERAGE ROUTING: Message routed from original owner ${contact.primaryAssigneeId} to temp owner ${routedTo} (Mode: ${coverage.coverageMode})`);
+                         }
+                      }
+
                       emitRealtimeMessage(normalizedPhone, {
                         id: messageId,
                         content: contentText || '',
                         timestamp: msgIsoTimestamp,
                         sender: 'contact',
                         status: 'DELIVERED',
-                        recipientId: 'user',
+                        recipientId: routedTo || 'user',
                       }, ownerWorkspaceId).catch(e => console.warn('[webhook] Sales Cloud realtime emit failed:', e));
                       handled = true;
                     }
@@ -381,6 +393,59 @@ export async function POST(request: Request) {
                       filename,
                       rawPayload: message as Record<string, unknown>
                     });
+                  }
+                }
+
+                // ---- Flow Execution Engine ----
+                if (message.type === 'text' && contentText) {
+                  try {
+                    const { flowStore } = await import('@/lib/conversationFlows/flowStore');
+                    const { matchKeyword, createFlowInstance, executeFlowNodes } = await import('@/lib/conversationFlows/flowExecutionEngine');
+                    
+                    const flows = Array.from(flowStore.values()).filter(f => f.status === 'active');
+                    const targetFlow = matchKeyword(contentText, flows);
+
+                    if (targetFlow) {
+                      console.log(`[webhook] Flow keyword matched: ${targetFlow.name}`);
+                      const startNode = targetFlow.nodes.find(n => n.type === 'TRIGGER_KEYWORD');
+                      
+                      if (startNode) {
+                        const instance = createFlowInstance(targetFlow, normalizedPhone, startNode.id);
+                        
+                        const sendMsg = async (phone: string, payload: any) => {
+                           console.log(`[webhook] Flow sending message to ${phone}:`, JSON.stringify(payload));
+                           const wamid = `wamid_flow_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+                           const content = payload.text?.body || (payload.interactive?.body?.text ? payload.interactive.body.text + ' [Interactive]' : '[Flow Message]');
+                           
+                           // Emit to UI
+                           emitRealtimeMessage(phone, {
+                             id: wamid,
+                             content,
+                             timestamp: new Date().toISOString(),
+                             sender: 'business',
+                             status: 'DELIVERED',
+                             recipientId: 'contact',
+                           }, ownerWorkspaceId || 'salescloud-ws-1').catch(e => console.warn('[webhook] Flow realtime emit failed:', e));
+                           
+                           // Save to Salesforce
+                           if (ownerWorkspaceId === 'salescloud-ws-1' || !ownerWorkspaceId) {
+                              const scConnector = workspaceRegistry.getConnector('salescloud-ws-1') as any;
+                              if (scConnector) {
+                                await scConnector.saveOutboundMessage({
+                                  messageId: wamid,
+                                  recipientPhone: phone,
+                                  content,
+                                  status: 'SENT'
+                                });
+                              }
+                           }
+                        };
+
+                        await executeFlowNodes(targetFlow, instance, sendMsg);
+                      }
+                    }
+                  } catch (flowErr) {
+                    console.error('[webhook] Flow execution failed:', flowErr);
                   }
                 }
 

@@ -73,14 +73,15 @@ export async function GET(request: NextRequest) {
     let nextUrl: string | null = `https://graph.facebook.com/v25.0/${wabaId}/message_templates?limit=100`;
 
     while (nextUrl) {
-      const response = await fetch(nextUrl, {
+      const currentUrl: string = nextUrl;
+      const metaRes: Response = await fetch(currentUrl, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const msg = errorData.error?.message || `Meta API Error ${response.status}`;
+      if (!metaRes.ok) {
+        const errorData = await metaRes.json().catch(() => ({}));
+        const msg = errorData.error?.message || `Meta API Error ${metaRes.status}`;
         console.error(`[templates/sync] Meta API error: ${msg}`);
         return NextResponse.json(
           { success: false, error: `Meta API Error: ${msg}`, details: errorData },
@@ -88,11 +89,11 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      const data = await response.json();
-      if (data.data && Array.isArray(data.data)) {
-        allTemplates.push(...data.data);
+      const metaData: any = await metaRes.json();
+      if (metaData.data && Array.isArray(metaData.data)) {
+        allTemplates.push(...metaData.data);
       }
-      nextUrl = data.paging?.next || null;
+      nextUrl = metaData.paging?.next || null;
     }
 
     // ── 3. Build sync report ──

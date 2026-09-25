@@ -36,6 +36,16 @@ export interface WorkspaceContact {
   workspaceId: string; // links to Workspace.id
   avatar?: string;
   createdAt: string;   // ISO date string
+  primaryAssigneeId?: string;
+  ownerUserId?: string;
+  createdByUserId?: string;
+  ownerName?: string;
+  teamId?: string;
+  salesforceObjectType?: string;
+  salesforceRecordId?: string;
+  originalAssigneeId?: string;
+  isCovered?: boolean;
+  coverageEndTime?: string;
 }
 
 export interface FastReplyTemplate {
@@ -106,7 +116,9 @@ export type AppScreen =
   | 'labels'
   | 'lists'
   | 'calls'
-  | 'users';
+  | 'users'
+  | 'coverage'
+  | 'conversation-flows';
 
 export type ThemeMode = 'light' | 'dark';
 

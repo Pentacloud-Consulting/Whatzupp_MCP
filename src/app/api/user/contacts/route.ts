@@ -6,8 +6,11 @@ import { workspaceRegistry } from '@/lib/connectors/workspaceRegistry';
 
 export const dynamic = 'force-dynamic';
 
+import { getSessionFromRequest } from '@/lib/auth';
+
 export async function GET(request: NextRequest) {
   try {
+    const session = await getSessionFromRequest(request);
     const { searchParams } = new URL(request.url);
     const workspaceId = searchParams.get('workspaceId') || 'salescloud-ws-1';
     const connector = workspaceRegistry.getConnector(workspaceId);
@@ -16,7 +19,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: `Unknown workspace ${workspaceId}` }, { status: 404 });
     }
 
-    const contacts = await connector.fetchContacts({});
+    const contacts = await connector.fetchContacts({
+      tenantId: session?.tenantId || undefined,
+      userId: session?.userId,
+      userRole: session?.role,
+    });
     return NextResponse.json({
       success: true,
       data: contacts,

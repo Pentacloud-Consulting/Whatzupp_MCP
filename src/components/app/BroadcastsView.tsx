@@ -62,6 +62,7 @@ export default function BroadcastsView() {
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('now');
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
+  const [templateParameters, setTemplateParameters] = useState('');
 
   // Audience
   const [audienceMode, setAudienceMode] = useState<AudienceMode>('contacts');
@@ -162,6 +163,18 @@ export default function BroadcastsView() {
       // Send requests in parallel (max 50)
       const promises = phoneList.map(async (phone) => {
         try {
+          const bodyText = getComponentText(selectedTemplate, 'BODY') || '';
+          // Count unique variables like {{1}}, {{2}} in the body
+          const expectedParams = new Set(bodyText.match(/\{\{\d+\}\}/g) || []).size;
+          
+          let parsedParams = templateParameters ? templateParameters.split(',').map(p => p.trim()) : [];
+          // Auto-pad missing parameters so Meta API doesn't reject it
+          while (parsedParams.length < expectedParams) {
+            parsedParams.push(`Param${parsedParams.length + 1}`);
+          }
+          // If the template has no parameters, send undefined instead of an empty array
+          if (parsedParams.length === 0) parsedParams = undefined as any;
+
           const res = await fetch('/api/send-whatsapp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -170,7 +183,8 @@ export default function BroadcastsView() {
               templateName: selectedTemplate.name,
               language: selectedTemplate.language,
               workspaceId: activeWorkspace?.id || 'salescloud-ws-1',
-              messageText: getComponentText(selectedTemplate, 'BODY')
+              messageText: bodyText,
+              parameters: parsedParams
             })
           });
           
@@ -333,6 +347,23 @@ export default function BroadcastsView() {
             </div>
             <p className="text-[12px] text-gray-400 mt-1">
               Approve or create templates under <span className="text-[#25D366] font-semibold cursor-pointer">Templates</span>.
+            </p>
+          </div>
+
+          {/* Template Parameters */}
+          <div className="mb-5">
+            <label className="block text-[13px] font-semibold text-gray-700 mb-1.5">
+              Template Parameters <span className="text-gray-400 font-normal">(Comma separated)</span>
+            </label>
+            <input
+              type="text"
+              value={templateParameters}
+              onChange={(e) => setTemplateParameters(e.target.value)}
+              placeholder="e.g. John, Pentacloud, Salesforce"
+              className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[#25D366] focus:ring-2 focus:ring-[#25D366]/10 transition-all"
+            />
+            <p className="text-[12px] text-gray-400 mt-1">
+              If your template expects variables (e.g., {"{{1}}"}, {"{{2}}"}), provide them here in order.
             </p>
           </div>
 

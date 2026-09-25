@@ -26,6 +26,7 @@ export function useRealtimeMessages(selectedContact: Contact | null, workspaceId
     const fetchMessages = async () => {
       try {
         const response = await fetch(`/api/conversations/${normalizedPhone}/messages?workspaceId=${workspaceId}`);
+        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
         const data = await response.json();
         
         if (currentPhoneRef.current === normalizedPhone && data.messages && Array.isArray(data.messages)) {
@@ -116,6 +117,7 @@ export function useRealtimeMessages(selectedContact: Contact | null, workspaceId
       if (isCancelled) return;
       try {
         const response = await fetch(`/api/conversations/${normalizedPhone}/messages?workspaceId=${workspaceId}`);
+        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
         const data = await response.json();
         
         if (currentPhoneRef.current === normalizedPhone && data.messages && Array.isArray(data.messages)) {

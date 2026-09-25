@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Contact, Message } from '@/types';
 import { formatTimestamp } from '@/utils/formatters';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Pencil, Trash2, X, Check, MessageSquare, Search, UserPlus, Plus, FileText, LayoutTemplate, Tag } from 'lucide-react';
+import { Pencil, Trash2, X, Check, MessageSquare, Search, UserPlus, Plus, FileText, LayoutTemplate, Tag, ShieldCheck } from 'lucide-react';
 import { useWorkspace } from '@/components/workspace/WorkspaceProvider';
 import { LABEL_COLORS } from '@/types/workspace';
 
@@ -297,10 +297,15 @@ const ChatList: React.FC<ChatListProps> = ({
                           <button onClick={handleCancelEdit} className="p-1 text-gray-400 hover:bg-gray-100 rounded-md transition-colors"><X size={16} /></button>
                         </div>
                       ) : (
-                        <h3 className={`text-[15px] truncate
+                        <h3 className={`text-[15px] flex items-center gap-1.5 min-w-0
                           ${unreadCount > 0 ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}
                         `}>
-                          {contact.name}
+                          <span className="truncate">{contact.name}</span>
+                          {contact.isCovered && state.profile?.id !== contact.originalAssigneeId && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-emerald-100/80 text-emerald-700 text-[9px] font-bold uppercase tracking-wider shrink-0 align-middle">
+                              <ShieldCheck size={9} strokeWidth={3} /> Temp
+                            </span>
+                          )}
                         </h3>
                       )}
                       {!isEditing && (

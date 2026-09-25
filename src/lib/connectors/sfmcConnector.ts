@@ -1,9 +1,10 @@
-import { Connector, MessagePage, WorkspaceContactResult, FieldMappingSchema, WorkspaceMessage, ContactAssignment, AssignmentAudit } from './connectorInterface';
+import { Connector, MessagePage, WorkspaceContactResult, FieldMappingSchema, WorkspaceMessage, ContactAssignment, AssignmentAudit, CoverageTransfer } from './connectorInterface';
 import { getSfmcAccessToken } from '../sfmcAuth';
 import { writeSentMessage, writeReceivedMessage } from '../sfmcDE';
 import { sendWhatsAppMessage } from '../../services/whatsappService';
-import { setConversationOwner } from '../storage/kvStore';
+import { setConversationOwner, getConfig, setConfig } from '../storage/kvStore';
 import { normalizePhoneNumber } from '../../utils/phone';
+import { CoverageRuntimeResolver } from '../coverage/coverageResolver';
 
 export class SFMCConnector implements Connector {
   public id = 'sfmc-ws-1';
@@ -67,27 +68,54 @@ export class SFMCConnector implements Connector {
         results = results.filter(c => c.name.toLowerCase().includes(query) || c.phoneNumber.includes(query));
       }
 
-      // Apply enterprise ownership filtering
-      if (params.tenantId && params.userRole !== 'SUPER_ADMIN') {
-        results = results.map(c => {
-          const assignment = this.fallbackAssignments.find(a => a.contactId === c.id && a.tenantId === params.tenantId);
-          return {
-            ...c,
-            ownerUserId: assignment?.ownerUserId,
-            primaryAssigneeId: assignment?.primaryAssigneeId,
-            createdByUserId: assignment?.createdByUserId,
-            teamId: assignment?.teamId,
-          };
-        });
+      const allAssignments = (await getConfig('sfmc_assignments') as ContactAssignment[]) || [];
+      // Apply enterprise ownership assignment mapping
+      // Apply enterprise ownership assignment mapping
+      let asyncResults = await Promise.all(results.map(async c => {
+        const assignment = allAssignments.find(a => a.contactId === c.id && (!params.tenantId || a.tenantId === params.tenantId));
+        const isUnassigned = !assignment || !assignment.primaryAssigneeId || assignment.primaryAssigneeId === 'unassigned' || assignment.primaryAssigneeId === 'none';
+        
+        let ownerId = isUnassigned ? undefined : assignment?.ownerUserId;
+        let assigneeId = isUnassigned ? undefined : assignment?.primaryAssigneeId;
+        
+        // --- PHASE 4: COVERAGE OVERLAY INTERCEPTOR ---
+        let originalAssigneeId = undefined;
+        let isCovered = false;
+        let coverageEndTime = undefined;
 
-        if (params.userRole === 'AGENT' || params.userRole === 'VIEWER') {
-          results = results.filter(c => c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
-        } else if (params.userRole === 'MANAGER') {
-          results = results.filter(c => (params.teamId && c.teamId === params.teamId) || c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
+        if (assigneeId && params.tenantId) {
+          const coverage = await CoverageRuntimeResolver.resolveOwnership(params.tenantId, assigneeId, c.id);
+          if (coverage.isCovered) {
+            originalAssigneeId = assigneeId;
+            assigneeId = coverage.resolvedOwnerId;
+            isCovered = true;
+            coverageEndTime = coverage.coverageMode;
+            if (ownerId === assignment?.primaryAssigneeId) {
+              ownerId = coverage.resolvedOwnerId;
+            }
+          }
         }
+        // ---------------------------------------------
+
+        return {
+          ...c,
+          ownerUserId: ownerId,
+          primaryAssigneeId: assigneeId,
+          createdByUserId: assignment?.createdByUserId || c.createdByUserId,
+          teamId: assignment?.teamId || c.teamId,
+          originalAssigneeId,
+          isCovered,
+          coverageEndTime
+        };
+      }));
+
+      if (params.userRole === 'AGENT' || params.userRole === 'VIEWER') {
+        asyncResults = asyncResults.filter(c => c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
+      } else if (params.userRole === 'MANAGER') {
+        asyncResults = asyncResults.filter(c => (params.teamId && c.teamId === params.teamId) || c.primaryAssigneeId === params.userId || c.createdByUserId === params.userId || c.ownerUserId === params.userId);
       }
 
-      return results;
+      return asyncResults;
     } catch (err) {
       console.warn('[SFMCConnector] Error fetching contacts from SFMC:', err);
       return [];
@@ -96,24 +124,263 @@ export class SFMCConnector implements Connector {
 
   // --- Enterprise Assignment Methods ---
   async fetchContactAssignments(params: { tenantId: string }): Promise<ContactAssignment[]> {
-    return this.fallbackAssignments.filter(a => a.tenantId === params.tenantId);
+    const allAssignments = (await getConfig('sfmc_assignments') as ContactAssignment[]) || [];
+    return allAssignments.filter(a => a.tenantId === params.tenantId);
   }
 
   async upsertContactAssignment(assignment: ContactAssignment): Promise<boolean> {
-    const existingIndex = this.fallbackAssignments.findIndex(
+    const isUnassigning = !assignment.primaryAssigneeId || assignment.primaryAssigneeId === 'unassigned' || assignment.primaryAssigneeId === 'none';
+    const cleanAssignment: ContactAssignment = {
+      ...assignment,
+      primaryAssigneeId: isUnassigning ? undefined : assignment.primaryAssigneeId,
+      ownerUserId: isUnassigning ? undefined : assignment.ownerUserId,
+      status: isUnassigning ? 'Unassigned' : (assignment.status || 'Active'),
+    };
+    const allAssignments = (await getConfig('sfmc_assignments') as ContactAssignment[]) || [];
+    const existingIndex = allAssignments.findIndex(
       a => a.contactId === assignment.contactId && a.tenantId === assignment.tenantId
     );
     if (existingIndex >= 0) {
-      this.fallbackAssignments[existingIndex] = { ...this.fallbackAssignments[existingIndex], ...assignment };
+      allAssignments[existingIndex] = cleanAssignment;
     } else {
-      this.fallbackAssignments.push({ ...assignment, id: `assign_${Date.now()}` });
+      allAssignments.push({ ...cleanAssignment, id: `assign_${Date.now()}` });
     }
+    await setConfig('sfmc_assignments', allAssignments);
     return true;
   }
 
   async logAssignmentAudit(audit: AssignmentAudit): Promise<boolean> {
-    this.fallbackAudits.push({ ...audit, id: `audit_${Date.now()}` });
+    const allAudits = (await getConfig('sfmc_audits') as AssignmentAudit[]) || [];
+    allAudits.push({ ...audit, id: `audit_${Date.now()}` });
+    await setConfig('sfmc_audits', allAudits);
     return true;
+  }
+  // -------------------------------------
+
+  // --- Enterprise Coverage Management ---
+  supportsCoverage = true;
+  
+  async fetchCoverageTransfers(params: { tenantId: string; workspaceId?: string }): Promise<CoverageTransfer[]> {
+    try {
+      const { access_token } = await getSfmcAccessToken();
+      const rest_instance_url = process.env.SFMC_REST_BASE_URI || '';
+      if (access_token.startsWith('mock-')) {
+        const allCoverages = (await getConfig('sfmc_coverages') as CoverageTransfer[]) || [];
+        return allCoverages.filter(c => c.tenantId === params.tenantId && (!params.workspaceId || c.workspaceId === params.workspaceId));
+      }
+
+      // We'd ideally query the Data Extension via /data/v1/customobjectdata/key/WhatZupp_Coverage_Transfer_DE/rowset
+      // Since SFMC REST API doesn't support complex filtering directly on rowsets easily without Advanced SOQL (it's not Salesforce),
+      // we usually fetch and filter, or use an API integration layer.
+      const res = await fetch(`${rest_instance_url}/data/v1/customobjectdata/key/WhatZupp_Coverage_Transfer_DE/rowset?$filter=Tenant_Id%20eq%20'${params.tenantId}'`, {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      if (!res.ok) throw new Error('SFMC fetchCoverageTransfers query failed');
+      
+      const data = await res.json();
+      const records = data.items || [];
+
+      const parsed = records.map((r: any) => ({
+        id: r.values.Coverage_Id,
+        tenantId: r.values.Tenant_Id,
+        workspaceId: r.values.Workspace_Id,
+        originalOwnerId: r.values.Original_Owner_Id,
+        temporaryOwnerId: r.values.Temporary_Owner_Id,
+        primaryBackupId: r.values.Primary_Backup_Id,
+        secondaryBackupId: r.values.Secondary_Backup_Id,
+        managerId: r.values.Manager_Id,
+        status: r.values.Status,
+        effectiveStatus: r.values.Effective_Status,
+        approvalStatus: r.values.Approval_Status,
+        startTime: r.values.Start_Time,
+        endTime: r.values.End_Time,
+        scopeType: r.values.Is_All_Contacts === 'true' ? 'ALL_CONTACTS' : 'SELECTED_CONTACTS',
+        scopeTargetIds: r.values.Specific_Contact_Ids ? r.values.Specific_Contact_Ids.split(',') : [],
+        reason: r.values.Reason,
+        createdBy: r.values.Created_By,
+        createdAt: r.values.Created_Date || new Date().toISOString(),
+        approvedBy: r.values.Approved_By,
+        approvedDate: r.values.Approved_Date,
+        revokedBy: r.values.Revoked_By,
+        revokedDate: r.values.Revoked_Date,
+        extendedBy: r.values.Extended_By,
+        extendedDate: r.values.Extended_Date,
+        extensionReason: r.values.Extension_Reason
+      }));
+
+      return params.workspaceId ? parsed.filter((p: any) => p.workspaceId === params.workspaceId) : parsed;
+    } catch (e) {
+      console.warn('[SfmcConnector] SFMC fetchCoverageTransfers failed, fallback to mock', e);
+      const allCoverages = (await getConfig('sfmc_coverages') as CoverageTransfer[]) || [];
+      return allCoverages.filter(c => c.tenantId === params.tenantId && (!params.workspaceId || c.workspaceId === params.workspaceId));
+    }
+  }
+
+  async createCoverageTransfer(coverage: CoverageTransfer): Promise<boolean> {
+    try {
+      const { access_token } = await getSfmcAccessToken();
+      const rest_instance_url = process.env.SFMC_REST_BASE_URI || '';
+      if (access_token.startsWith('mock-')) {
+        const allCoverages = (await getConfig('sfmc_coverages') as CoverageTransfer[]) || [];
+        allCoverages.push(coverage);
+        await setConfig('sfmc_coverages', allCoverages);
+        return true;
+      }
+
+      const payload = {
+        keys: {
+          Coverage_Id: coverage.id
+        },
+        values: {
+          Tenant_Id: coverage.tenantId,
+          Workspace_Id: coverage.workspaceId,
+          Original_Owner_Id: coverage.originalOwnerId,
+          Temporary_Owner_Id: coverage.temporaryOwnerId,
+          Primary_Backup_Id: coverage.primaryBackupId || '',
+          Secondary_Backup_Id: coverage.secondaryBackupId || '',
+          Manager_Id: coverage.managerId || '',
+          Status: coverage.status,
+          Effective_Status: coverage.effectiveStatus,
+          Approval_Status: coverage.approvalStatus,
+          Start_Time: coverage.startTime,
+          End_Time: coverage.endTime,
+          Is_All_Contacts: coverage.scopeType === 'ALL_CONTACTS' ? 'true' : 'false',
+          Specific_Contact_Ids: coverage.scopeTargetIds?.join(',') || '',
+          Reason: coverage.reason || '',
+          Created_By: coverage.createdBy,
+          Created_Date: new Date().toISOString()
+        }
+      };
+
+      const res = await fetch(`${rest_instance_url}/hub/v1/dataevents/key:WhatZupp_Coverage_Transfer_DE/rowset`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify([payload])
+      });
+      if (!res.ok) throw new Error('SFMC createCoverageTransfer failed');
+      return true;
+    } catch (e) {
+      const allCoverages = (await getConfig('sfmc_coverages') as CoverageTransfer[]) || [];
+      allCoverages.push(coverage);
+      await setConfig('sfmc_coverages', allCoverages);
+      return true;
+    }
+  }
+
+  async approveCoverageTransfer(id: string, approvedBy: string): Promise<boolean> {
+    try {
+      const { access_token } = await getSfmcAccessToken();
+      const rest_instance_url = process.env.SFMC_REST_BASE_URI || '';
+      if (access_token.startsWith('mock-')) {
+        const allCoverages = (await getConfig('sfmc_coverages') as CoverageTransfer[]) || [];
+        const index = allCoverages.findIndex(c => c.id === id);
+        if (index === -1) return false;
+        allCoverages[index].approvalStatus = 'APPROVED';
+        allCoverages[index].approvedBy = approvedBy;
+        allCoverages[index].approvedDate = new Date().toISOString();
+        const start = new Date(allCoverages[index].startTime).getTime();
+        if (start <= Date.now()) {
+          allCoverages[index].effectiveStatus = 'ACTIVE';
+          allCoverages[index].status = 'ACTIVE';
+        }
+        await setConfig('sfmc_coverages', allCoverages);
+        return true;
+      }
+
+      // Just send the fields to update
+      const payload = {
+        keys: { Coverage_Id: id },
+        values: {
+          Approval_Status: 'APPROVED',
+          Approved_By: approvedBy,
+          Approved_Date: new Date().toISOString()
+          // For SFMC, we rely on the Cron service to flip to ACTIVE rather than doing a pre-fetch here to save API calls
+        }
+      };
+
+      const res = await fetch(`${rest_instance_url}/hub/v1/dataevents/key:WhatZupp_Coverage_Transfer_DE/rowset`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify([payload])
+      });
+      return res.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async revokeCoverageTransfer(id: string, revokedBy: string): Promise<boolean> {
+    try {
+      const { access_token } = await getSfmcAccessToken();
+      const rest_instance_url = process.env.SFMC_REST_BASE_URI || '';
+      if (access_token.startsWith('mock-')) {
+        const allCoverages = (await getConfig('sfmc_coverages') as CoverageTransfer[]) || [];
+        const index = allCoverages.findIndex(c => c.id === id);
+        if (index === -1) return false;
+        allCoverages[index].status = 'REVOKED';
+        allCoverages[index].effectiveStatus = 'REVOKED';
+        allCoverages[index].revokedBy = revokedBy;
+        allCoverages[index].revokedDate = new Date().toISOString();
+        await setConfig('sfmc_coverages', allCoverages);
+        return true;
+      }
+
+      const payload = {
+        keys: { Coverage_Id: id },
+        values: {
+          Status: 'REVOKED',
+          Effective_Status: 'REVOKED',
+          Revoked_By: revokedBy,
+          Revoked_Date: new Date().toISOString()
+        }
+      };
+
+      const res = await fetch(`${rest_instance_url}/hub/v1/dataevents/key:WhatZupp_Coverage_Transfer_DE/rowset`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify([payload])
+      });
+      return res.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async extendCoverageTransfer(id: string, newEndTime: string, extendedBy: string, reason?: string): Promise<boolean> {
+    try {
+      const { access_token } = await getSfmcAccessToken();
+      const rest_instance_url = process.env.SFMC_REST_BASE_URI || '';
+      if (access_token.startsWith('mock-')) {
+        const allCoverages = (await getConfig('sfmc_coverages') as CoverageTransfer[]) || [];
+        const index = allCoverages.findIndex(c => c.id === id);
+        if (index === -1) return false;
+        allCoverages[index].endTime = newEndTime;
+        allCoverages[index].extendedBy = extendedBy;
+        allCoverages[index].extendedDate = new Date().toISOString();
+        if (reason) allCoverages[index].extensionReason = reason;
+        await setConfig('sfmc_coverages', allCoverages);
+        return true;
+      }
+
+      const payload: any = {
+        keys: { Coverage_Id: id },
+        values: {
+          End_Time: newEndTime,
+          Extended_By: extendedBy,
+          Extended_Date: new Date().toISOString()
+        }
+      };
+      if (reason) payload.values.Extension_Reason = reason;
+
+      const res = await fetch(`${rest_instance_url}/hub/v1/dataevents/key:WhatZupp_Coverage_Transfer_DE/rowset`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify([payload])
+      });
+      return res.ok;
+    } catch (e) {
+      return false;
+    }
   }
   // -------------------------------------
 

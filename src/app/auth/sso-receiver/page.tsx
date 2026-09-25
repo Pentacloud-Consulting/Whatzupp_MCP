@@ -50,7 +50,7 @@ export default function SSOReceiverPage() {
             }
           }
           
-          router.replace(redirectUrl);
+          window.location.href = redirectUrl;
         } else {
           setError(data.error || 'Authentication failed. Please contact your administrator.');
           setStatus('');
