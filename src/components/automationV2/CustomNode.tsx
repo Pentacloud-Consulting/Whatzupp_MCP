@@ -61,7 +61,7 @@ export default function CustomNode({ data, selected }: NodeProps) {
             {nodeDef?.category || 'Custom'}
           </span>
           <span className="text-sm font-bold text-slate-800 truncate">
-            {title}
+            {title as string}
           </span>
         </div>
         {data.configured && (
