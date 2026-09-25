@@ -11,6 +11,7 @@ import {
   addEdge, 
   Connection,
   Edge,
+  Node,
   ReactFlowProvider
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -39,8 +40,8 @@ function JourneyBuilderFlow({ journeyId, onClose }: JourneyBuilderV2Props) {
   const { activeWorkspace } = useWorkspace();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
   const [showValidation, setShowValidation] = useState(false);

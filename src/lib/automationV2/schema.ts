@@ -1,6 +1,6 @@
 // src/lib/automationV2/schema.ts
 
-export type AutomationStatus = 'draft' | 'pending_approval' | 'published' | 'archived';
+export type AutomationStatus = 'draft' | 'pending_approval' | 'approved' | 'published' | 'archived';
 export type AutomationVersion = number;
 
 export interface AutomationV2 {
@@ -44,7 +44,9 @@ export type NodeType =
   // CRM
   | 'ACTION_CREATE_LEAD' | 'ACTION_UPDATE_LEAD' | 'ACTION_ASSIGN_AGENT'
   // AI
-  | 'AI_LEAD_SCORE' | 'AI_SENTIMENT' | 'AI_INTENT';
+  | 'AI_LEAD_SCORE' | 'AI_SENTIMENT' | 'AI_INTENT'
+  // Integrations
+  | 'ACTION_WEBHOOK';
 
 export interface AutomationNode {
   id: string;
