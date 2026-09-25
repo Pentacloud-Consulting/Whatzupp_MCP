@@ -64,7 +64,7 @@ export default function CustomNode({ data, selected }: NodeProps) {
             {title as string}
           </span>
         </div>
-        {data.configured && (
+        {!!data.configured && (
           <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Configured" />
         )}
       </div>
