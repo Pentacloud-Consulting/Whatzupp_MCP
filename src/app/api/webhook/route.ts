@@ -402,7 +402,7 @@ export async function POST(request: Request) {
                     const { flowStore } = await import('@/lib/conversationFlows/flowStore');
                     const { matchKeyword, createFlowInstance, executeFlowNodes } = await import('@/lib/conversationFlows/flowExecutionEngine');
                     
-                    const flows = Array.from(flowStore.values()).filter((f: any) => f.status === 'active');
+                    const flows = Array.from(flowStore.values()).filter((f: any) => f.status === 'active') as any[];
                     const targetFlow = matchKeyword(contentText, flows);
 
                     if (targetFlow) {
@@ -422,7 +422,7 @@ export async function POST(request: Request) {
                              id: wamid,
                              content,
                              timestamp: new Date().toISOString(),
-                             sender: 'business',
+                             sender: 'user',
                              status: 'DELIVERED',
                              recipientId: 'contact',
                            }, ownerWorkspaceId || 'salescloud-ws-1').catch(e => console.warn('[webhook] Flow realtime emit failed:', e));
