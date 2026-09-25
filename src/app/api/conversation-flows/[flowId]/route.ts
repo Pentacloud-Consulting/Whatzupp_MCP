@@ -7,16 +7,17 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { flowId: string } }
+  { params }: { params: Promise<{ flowId: string }> }
 ) {
   try {
+    const { flowId } = await params;
     // Fetch from parent route and filter
     const baseUrl = new URL(req.url).origin;
     const res = await fetch(`${baseUrl}/api/conversation-flows`, {
       headers: Object.fromEntries(req.headers),
     });
     const data = await res.json();
-    const flow = data.flows?.find((f: any) => f.id === params.flowId);
+    const flow = data.flows?.find((f: any) => f.id === flowId);
 
     if (!flow) {
       return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
@@ -30,12 +31,13 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { flowId: string } }
+  { params }: { params: Promise<{ flowId: string }> }
 ) {
   try {
+    const { flowId } = await params;
     const body = await req.json();
     // In production, update in Salesforce/SFMC
-    return NextResponse.json({ flow: { ...body, id: params.flowId, updatedAt: new Date().toISOString() } });
+    return NextResponse.json({ flow: { ...body, id: flowId, updatedAt: new Date().toISOString() } });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -43,10 +45,11 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { flowId: string } }
+  { params }: { params: Promise<{ flowId: string }> }
 ) {
   try {
-    return NextResponse.json({ success: true, deletedId: params.flowId });
+    const { flowId } = await params;
+    return NextResponse.json({ success: true, deletedId: flowId });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

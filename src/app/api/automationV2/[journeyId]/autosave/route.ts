@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { journeyId: string } }
+  { params }: { params: Promise<{ journeyId: string }> }
 ) {
   try {
-    const journeyId = params.journeyId;
+    const { journeyId } = await params;
     const body = await req.json();
 
     // In a real application, save `body` to the database for this journey ID.
