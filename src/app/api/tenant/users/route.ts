@@ -8,7 +8,7 @@ import { getMockUsers, addMockUser, updateMockUser, deleteMockUser } from '@/lib
 export async function GET(request: NextRequest) {
   try {
     const session = await getSessionFromRequest(request);
-    if (!session || (session.role !== 'TENANT_ADMIN' && session.role !== 'SUPER_ADMIN' && session.role !== 'MANAGER')) {
+    if (!session || !['TENANT_ADMIN', 'SUPER_ADMIN', 'MANAGER', 'AGENT'].includes(session.role)) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 });
     }
 

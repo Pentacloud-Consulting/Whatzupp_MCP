@@ -206,12 +206,12 @@ export default function ContactDetailsPage({ contact, onBack, onStartChat }: Con
 
                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Contact Tags</h3>
                  <div className="flex flex-wrap gap-2">
-                   {(isEditing ? formData.tags.split(',').filter(Boolean) : contact.tags).map(t => (
+                   {(isEditing ? formData.tags.split(',').filter(Boolean) : (contact.tags || [])).map(t => (
                      <span key={t.trim()} className="px-3 py-1 bg-slate-50 text-slate-600 border border-slate-200 rounded-lg text-xs font-bold shadow-sm">
                        {t.trim()}
                      </span>
                    ))}
-                   {(!isEditing && contact.tags.length === 0) && <span className="text-slate-400 text-xs italic">No tags</span>}
+                   {(!isEditing && (!contact.tags || contact.tags.length === 0)) && <span className="text-slate-400 text-xs italic">No tags</span>}
                  </div>
               </div>
 

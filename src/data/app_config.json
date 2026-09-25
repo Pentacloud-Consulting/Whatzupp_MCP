@@ -3,5 +3,82 @@
     "workspaceId": "salescloud-ws-1",
     "updatedAt": "2026-09-25T11:28:26.976Z",
     "assignedBy": "outbound"
-  }
+  },
+  "sfmc_assignments": [
+    {
+      "tenantId": "tenant-1",
+      "workspaceId": "sfmc-ws-1",
+      "contactId": "1",
+      "ownerUserId": "dev-user-1",
+      "primaryAssigneeId": "user-1",
+      "createdByUserId": "dev-user-1",
+      "assignedAt": "2026-09-25T12:54:15.919Z",
+      "assignedBy": "dev-user-1",
+      "status": "Active",
+      "workspaceType": "sfmc",
+      "id": "assign_1790340855920"
+    }
+  ],
+  "sfmc_audits": [
+    {
+      "tenantId": "tenant-1",
+      "workspaceId": "sfmc-ws-1",
+      "contactId": "1",
+      "action": "Reassigned",
+      "whoId": "dev-user-1",
+      "timestamp": "2026-09-25T12:54:15.921Z",
+      "toUserId": "user-1",
+      "id": "audit_1790340855921"
+    }
+  ],
+  "sc_assignments": [
+    {
+      "tenantId": "t-xyz_company",
+      "workspaceId": "salescloud-ws-1",
+      "contactId": "00QdL00000hgt7OUAQ",
+      "ownerUserId": "req-1790152522362",
+      "primaryAssigneeId": "mock-1790340904440",
+      "createdByUserId": "req-1790152522362",
+      "assignedAt": "2026-09-25T12:55:17.700Z",
+      "assignedBy": "req-1790152522362",
+      "status": "Active",
+      "workspaceType": "salescloud",
+      "id": "assign_1790340917701"
+    },
+    {
+      "tenantId": "t-xyz_company",
+      "workspaceId": "salescloud-ws-1",
+      "contactId": "00QdL00000hzJTBUA2",
+      "ownerUserId": "req-1790152522362",
+      "primaryAssigneeId": "mock-1790340904440",
+      "createdByUserId": "req-1790152522362",
+      "assignedAt": "2026-09-25T12:55:22.980Z",
+      "assignedBy": "req-1790152522362",
+      "status": "Active",
+      "workspaceType": "salescloud",
+      "id": "assign_1790340922981"
+    }
+  ],
+  "sc_audits": [
+    {
+      "tenantId": "t-xyz_company",
+      "workspaceId": "salescloud-ws-1",
+      "contactId": "00QdL00000hgt7OUAQ",
+      "action": "Reassigned",
+      "whoId": "req-1790152522362",
+      "timestamp": "2026-09-25T12:55:17.703Z",
+      "toUserId": "mock-1790340904440",
+      "id": "audit_1790340917704"
+    },
+    {
+      "tenantId": "t-xyz_company",
+      "workspaceId": "salescloud-ws-1",
+      "contactId": "00QdL00000hzJTBUA2",
+      "action": "Reassigned",
+      "whoId": "req-1790152522362",
+      "timestamp": "2026-09-25T12:55:22.982Z",
+      "toUserId": "mock-1790340904440",
+      "id": "audit_1790340922983"
+    }
+  ]
 }
