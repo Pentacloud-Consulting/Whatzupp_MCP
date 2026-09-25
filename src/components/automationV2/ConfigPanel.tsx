@@ -35,7 +35,7 @@ export default function ConfigPanel({ selectedNode, onUpdateNode, onClose }: Con
         >
           <Settings size={12} className="inline mr-1 mb-0.5" /> General
         </button>
-        {selectedNode.type.includes('TRIGGER') && (
+        {selectedNode.type?.includes('TRIGGER') && (
           <button 
             onClick={() => setActiveTab('audience')}
             className={`pb-2 text-xs font-bold transition-colors ${activeTab === 'audience' ? 'text-[#00C853] border-b-2 border-[#00C853]' : 'text-slate-400 hover:text-slate-600'}`}
@@ -43,7 +43,7 @@ export default function ConfigPanel({ selectedNode, onUpdateNode, onClose }: Con
             <Users size={12} className="inline mr-1 mb-0.5" /> Audience
           </button>
         )}
-        {(selectedNode.type.includes('LOGIC') || selectedNode.type.includes('WAIT')) && (
+        {(selectedNode.type?.includes('LOGIC') || selectedNode.type?.includes('WAIT')) && (
           <button 
             onClick={() => setActiveTab('conditions')}
             className={`pb-2 text-xs font-bold transition-colors ${activeTab === 'conditions' ? 'text-[#00C853] border-b-2 border-[#00C853]' : 'text-slate-400 hover:text-slate-600'}`}
@@ -66,7 +66,7 @@ export default function ConfigPanel({ selectedNode, onUpdateNode, onClose }: Con
             <div>
               <label className="block text-[10px] font-extrabold text-slate-700 uppercase mb-1">Custom Name (Optional)</label>
               <input 
-                value={selectedNode.data?.label || ''}
+                value={(selectedNode.data?.label as string) || ''}
                 onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, label: e.target.value })}
                 placeholder="E.g. Send Welcome Msg" 
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#00C853]/30 focus:border-[#00C853]"
