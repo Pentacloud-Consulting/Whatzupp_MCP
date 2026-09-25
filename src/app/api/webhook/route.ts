@@ -402,7 +402,7 @@ export async function POST(request: Request) {
                     const { flowStore } = await import('@/lib/conversationFlows/flowStore');
                     const { matchKeyword, createFlowInstance, executeFlowNodes } = await import('@/lib/conversationFlows/flowExecutionEngine');
                     
-                    const flows = Array.from(flowStore.values()).filter(f => f.status === 'active');
+                    const flows = Array.from(flowStore.values()).filter((f: any) => f.status === 'active');
                     const targetFlow = matchKeyword(contentText, flows);
 
                     if (targetFlow) {
