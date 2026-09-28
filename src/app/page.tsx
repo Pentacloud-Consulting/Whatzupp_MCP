@@ -222,14 +222,14 @@ export default function SaaSLandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { icon: <MessageSquare/>, title: 'Real-Time Chats', desc: 'Live WhatsApp conversations with contact context and rich media support.', color: 'text-emerald-500', bg: 'bg-emerald-50' },
-              { icon: <Cloud/>, title: 'SFMC Integration', desc: 'Sync subscribers, send journeys, and personalize conversations.', color: 'text-sky-500', bg: 'bg-sky-50' },
-              { icon: <Cloud/>, title: 'Sales Cloud Connector', desc: 'Auto-sync leads, contacts, opportunities, and activities.', color: 'text-indigo-500', bg: 'bg-indigo-50' },
-              { icon: <Workflow/>, title: 'Automation Engine', desc: 'Trigger automated flows, auto replies, and keyword-based journeys.', color: 'text-purple-500', bg: 'bg-purple-50' },
-              { icon: <BarChart3/>, title: 'Analytics & Insights', desc: 'Track team performance, response time, campaign results, and more.', color: 'text-indigo-500', bg: 'bg-indigo-50' },
-              { icon: <Zap/>, title: 'Fast Reply Hub', desc: 'Create quick replies, reusable templates, and smart responses.', color: 'text-amber-500', bg: 'bg-amber-50' },
-              { icon: <Users2/>, title: 'Contact Management', desc: 'Unified contact profiles across Salesforce, SFMC and more.', color: 'text-rose-500', bg: 'bg-rose-50' },
-              { icon: <ShieldCheck/>, title: 'Platform Audit Logs', desc: 'Full audit logs for user actions, access control, and compliance.', color: 'text-teal-500', bg: 'bg-teal-50' },
+              { icon: <MessageSquare size={22} />, title: 'Real-Time Chats', desc: 'Live WhatsApp conversations with contact context and rich media support.', color: 'text-emerald-500', bg: 'bg-emerald-50' },
+              { icon: <Cloud size={22} />, title: 'SFMC Integration', desc: 'Sync subscribers, send journeys, and personalize conversations.', color: 'text-sky-500', bg: 'bg-sky-50' },
+              { icon: <Cloud size={22} />, title: 'Sales Cloud Connector', desc: 'Auto-sync leads, contacts, opportunities, and activities.', color: 'text-indigo-500', bg: 'bg-indigo-50' },
+              { icon: <Workflow size={22} />, title: 'Automation Engine', desc: 'Trigger automated flows, auto replies, and keyword-based journeys.', color: 'text-purple-500', bg: 'bg-purple-50' },
+              { icon: <BarChart3 size={22} />, title: 'Analytics & Insights', desc: 'Track team performance, response time, campaign results, and more.', color: 'text-indigo-500', bg: 'bg-indigo-50' },
+              { icon: <Zap size={22} />, title: 'Fast Reply Hub', desc: 'Create quick replies, reusable templates, and smart responses.', color: 'text-amber-500', bg: 'bg-amber-50' },
+              { icon: <Users2 size={22} />, title: 'Contact Management', desc: 'Unified contact profiles across Salesforce, SFMC and more.', color: 'text-rose-500', bg: 'bg-rose-50' },
+              { icon: <ShieldCheck size={22} />, title: 'Platform Audit Logs', desc: 'Full audit logs for user actions, access control, and compliance.', color: 'text-teal-500', bg: 'bg-teal-50' },
             ].map((item, idx) => (
               <motion.div 
                 key={idx} 
@@ -240,7 +240,7 @@ export default function SaaSLandingPage() {
                    <ArrowRight size={16} className="text-slate-300"/>
                 </div>
                 <div className={`w-12 h-12 rounded-2xl ${item.bg} ${item.color} flex items-center justify-center shadow-sm mb-5`}>
-                  {React.cloneElement(item.icon as React.ReactElement, { size: 22 })}
+                  {item.icon}
                 </div>
                 <h4 className="text-lg font-extrabold text-slate-900 mb-2">{item.title}</h4>
                 <p className="text-slate-500 font-medium text-sm leading-relaxed">{item.desc}</p>
