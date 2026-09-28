@@ -455,6 +455,29 @@ export default function ContactsView() {
         ) : viewMode === 'grid' ? (
           
           /* ═══ GRID CARDS VIEW ═══ */
+          <div>
+            {/* Select All Row (Admin/Manager only) */}
+            {isAdminOrManager && filtered.length > 0 && (
+              <div className="flex items-center gap-3 mb-4 px-1">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  checked={filtered.length > 0 && selectedContactIds.size === filtered.length}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedContactIds(new Set(filtered.map(c => c.id)));
+                    } else {
+                      setSelectedContactIds(new Set());
+                    }
+                  }}
+                />
+                <span className="text-xs font-bold text-slate-600">
+                  {selectedContactIds.size > 0
+                    ? `${selectedContactIds.size} of ${filtered.length} selected`
+                    : `Select all ${filtered.length} contacts`}
+                </span>
+              </div>
+            )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filtered.map(contact => {
               const initials = contact.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'CT';
@@ -466,8 +489,26 @@ export default function ContactsView() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
                   onClick={() => handleSetViewingProfile(contact)}
-                  className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-[0_4px_20px_rgba(15,23,42,0.03)] hover:shadow-xl hover:border-emerald-500/30 transition-all duration-300 group relative flex flex-col justify-between cursor-pointer"
+                  className={`bg-white rounded-2xl p-4 border shadow-[0_4px_20px_rgba(15,23,42,0.03)] hover:shadow-xl hover:border-emerald-500/30 transition-all duration-300 group relative flex flex-col justify-between cursor-pointer ${
+                    selectedContactIds.has(contact.id) ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/30' : 'border-slate-200/80'
+                  }`}
                 >
+                  {/* Selection Checkbox (Admin/Manager only) */}
+                  {isAdminOrManager && (
+                    <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        checked={selectedContactIds.has(contact.id)}
+                        onChange={(e) => {
+                          const newSet = new Set(selectedContactIds);
+                          if (e.target.checked) newSet.add(contact.id);
+                          else newSet.delete(contact.id);
+                          setSelectedContactIds(newSet);
+                        }}
+                      />
+                    </div>
+                  )}
                   <div>
                     {/* Header Row: Avatar & Contact Info */}
                     <div className="flex items-start gap-3 mb-3">
@@ -624,6 +665,7 @@ export default function ContactsView() {
                 </motion.div>
               );
             })}
+          </div>
           </div>
 
         ) : (
