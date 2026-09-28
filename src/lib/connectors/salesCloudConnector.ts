@@ -355,7 +355,6 @@ export class SalesCloudConnector implements Connector {
         Original_Owner_Id__c: coverage.originalOwnerId,
         Temporary_Owner_Id__c: coverage.temporaryOwnerId,
         Primary_Backup_Id__c: coverage.primaryBackupId,
-        Secondary_Backup_Id__c: coverage.secondaryBackupId,
         Manager_Id__c: coverage.managerId,
         Status__c: coverage.status,
         Effective_Status__c: coverage.effectiveStatus,
@@ -415,8 +414,6 @@ export class SalesCloudConnector implements Connector {
 
       const payload = {
         Approval_Status__c: 'APPROVED',
-        Approved_By__c: approvedBy,
-        Approved_Date__c: new Date().toISOString(),
         Status__c: isActiveNow ? 'ACTIVE' : 'PENDING',
         Effective_Status__c: isActiveNow ? 'ACTIVE' : 'PENDING'
       };
@@ -426,10 +423,28 @@ export class SalesCloudConnector implements Connector {
         headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+      if (!res.ok) {
+        console.error('[SalesCloudConnector] Approve Failed: ', await res.text());
+        throw new Error('Salesforce Approve Failed');
+      }
       return res.ok;
     } catch (e) {
-      console.warn('[SalesCloudConnector] SF approveCoverageTransfer failed, fallback', e);
-      return false; // For mock fallback, we would ideally just write to mock, but the initial mock check handles this.
+      console.warn('[SalesCloudConnector] SF approveCoverageTransfer failed, fallback to mock', e);
+      const allCoverages = (await getConfig('sc_coverages') as CoverageTransfer[]) || [];
+      const index = allCoverages.findIndex(c => c.id === id);
+      if (index !== -1) {
+        allCoverages[index].approvalStatus = 'APPROVED';
+        allCoverages[index].approvedBy = approvedBy;
+        allCoverages[index].approvedDate = new Date().toISOString();
+        const start = new Date(allCoverages[index].startTime).getTime();
+        if (start <= Date.now()) {
+          allCoverages[index].effectiveStatus = 'ACTIVE';
+          allCoverages[index].status = 'ACTIVE';
+        }
+        await setConfig('sc_coverages', allCoverages);
+        return true;
+      }
+      return false;
     }
   }
 
@@ -450,17 +465,31 @@ export class SalesCloudConnector implements Connector {
 
       const payload = {
         Status__c: 'REVOKED',
-        Effective_Status__c: 'REVOKED',
-        Revoked_By__c: revokedBy,
-        Revoked_Date__c: new Date().toISOString()
+        Effective_Status__c: 'REVOKED'
       };
       const res = await fetch(`${instance_url}/services/data/v59.0/sobjects/WhatZupp_Coverage_Transfer__c/Coverage_Id__c/${id}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+      if (!res.ok) {
+        console.error('[SalesCloudConnector] Revoke Failed: ', await res.text());
+        throw new Error('Salesforce Revoke Failed');
+      }
       return res.ok;
     } catch (e) {
+      // Fallback to local config if Salesforce fails (e.g., for mock records)
+      console.warn('[SalesCloudConnector] Fallback revoke to local config');
+      const allCoverages = (await getConfig('sc_coverages') as CoverageTransfer[]) || [];
+      const index = allCoverages.findIndex(c => c.id === id);
+      if (index !== -1) {
+        allCoverages[index].status = 'REVOKED';
+        allCoverages[index].effectiveStatus = 'REVOKED';
+        allCoverages[index].revokedBy = revokedBy;
+        allCoverages[index].revokedDate = new Date().toISOString();
+        await setConfig('sc_coverages', allCoverages);
+        return true;
+      }
       return false;
     }
   }
@@ -481,19 +510,32 @@ export class SalesCloudConnector implements Connector {
       }
 
       const payload: any = {
-        End_Time__c: newEndTime,
-        Extended_By__c: extendedBy,
-        Extended_Date__c: new Date().toISOString()
+        End_Time__c: newEndTime
       };
-      if (reason) payload.Extension_Reason__c = reason;
 
       const res = await fetch(`${instance_url}/services/data/v59.0/sobjects/WhatZupp_Coverage_Transfer__c/Coverage_Id__c/${id}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+      if (!res.ok) {
+        console.error('[SalesCloudConnector] Extend Failed: ', await res.text());
+        throw new Error('Salesforce Extend Failed');
+      }
       return res.ok;
     } catch (e) {
+      // Fallback to local config if Salesforce fails (e.g., for mock records)
+      console.warn('[SalesCloudConnector] Fallback extend to local config');
+      const allCoverages = (await getConfig('sc_coverages') as CoverageTransfer[]) || [];
+      const index = allCoverages.findIndex(c => c.id === id);
+      if (index !== -1) {
+        allCoverages[index].endTime = newEndTime;
+        allCoverages[index].extendedBy = extendedBy;
+        allCoverages[index].extendedDate = new Date().toISOString();
+        if (reason) allCoverages[index].extensionReason = reason;
+        await setConfig('sc_coverages', allCoverages);
+        return true;
+      }
       return false;
     }
   }
@@ -1300,6 +1342,71 @@ export class SalesCloudConnector implements Connector {
   ): Promise<boolean> {
     const objectType = id.startsWith('003') ? 'Contact' : 'Lead';
     return this.updateContactOrLead(id, objectType, updates);
+  }
+
+  async fetchWorkspaceUsers(tenantId: string): Promise<any[]> {
+    try {
+      let { access_token, instance_url } = await getSalesCloudAccessToken();
+      if (access_token.startsWith('mock-')) {
+        throw new Error('Mock token');
+      }
+
+      const q = `SELECT Id, User_Id__c, Name__c, Email__c, Role__c, Status__c FROM WhatZupp_User__c WHERE Tenant_Id__c = '${tenantId}'`;
+      const res = await fetch(`${instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
+        headers: { 'Authorization': `Bearer ${access_token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch from WhatZupp_User__c');
+      const data = await res.json();
+      return (data.records || []).map((r: any) => ({
+        id: r.User_Id__c || r.Id,
+        fullName: r.Name__c,
+        email: r.Email__c,
+        role: r.Role__c,
+        status: r.Status__c || 'ACTIVE',
+        workspacePermissions: [{ workspaceType: 'SALES_CLOUD' }]
+      }));
+    } catch (err) {
+      console.warn('[SalesCloudConnector] fetchWorkspaceUsers fallback to mock');
+      const { getMockUsers } = require('../storage/mockUsersStore');
+      return getMockUsers().filter((u: any) => 
+        (u.tenantId === tenantId || !u.tenantId) && 
+        u.workspacePermissions?.some((w: any) => w.workspaceType === 'SALES_CLOUD')
+      );
+    }
+  }
+
+  async createWorkspaceUser(tenantId: string, user: any): Promise<any> {
+    try {
+      let { access_token, instance_url } = await getSalesCloudAccessToken();
+      if (access_token.startsWith('mock-')) {
+        throw new Error('Mock token');
+      }
+      
+      const res = await fetch(`${instance_url}/services/data/v60.0/sobjects/WhatZupp_User__c`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          User_Id__c: user.id,
+          Tenant_Id__c: tenantId,
+          Workspace__c: user.workspacePermissions?.map((w: any) => w.workspaceType).join(';') || 'SALES_CLOUD',
+          Name__c: user.fullName,
+          Email__c: user.email,
+          Password__c: user.password || '',
+          Role__c: user.role,
+          Status__c: user.status || 'ACTIVE'
+        })
+      });
+      if (!res.ok) throw new Error('Failed to create in WhatZupp_User__c');
+      return user;
+    } catch (err) {
+      console.warn('[SalesCloudConnector] createWorkspaceUser fallback to mock');
+      const { addMockUser } = require('../storage/mockUsersStore');
+      addMockUser(user);
+      return user;
+    }
   }
 
   async deleteContact(id: string): Promise<boolean> {

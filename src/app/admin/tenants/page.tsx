@@ -134,17 +134,17 @@ export default function AdminTenantsPage() {
             </div>
 
             <div className="space-y-2 pt-3 border-t border-gray-100 text-xs text-gray-700">
-              <div className="font-semibold text-gray-500">Active Tenant Users ({t.users?.length || 0}):</div>
-              <div className="space-y-1.5">
-                {t.users?.map((u: any) => (
-                  <div key={u.id} className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-                    <div>
-                      <span className="font-bold text-gray-900">{u.fullName}</span>
-                      <span className="text-gray-500 text-[11px] ml-2">({u.email})</span>
-                    </div>
-                    <span className="text-[10px] font-mono font-bold text-gray-600 bg-gray-200/70 px-2 py-0.5 rounded">{u.role}</span>
-                  </div>
-                ))}
+              <div className="font-semibold text-gray-500">User Allocation & Usage:</div>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="flex-1 bg-gray-100 h-2 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full ${t.userUsage >= t.userLimit ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                    style={{ width: `${Math.min(100, (t.userUsage / Math.max(1, t.userLimit)) * 100)}%` }}
+                  />
+                </div>
+                <span className="font-mono font-bold text-gray-700 whitespace-nowrap">
+                  {t.userUsage} / {t.userLimit}
+                </span>
               </div>
             </div>
           </div>

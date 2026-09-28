@@ -60,9 +60,9 @@ export default class WhatzuppChatPanel extends NavigationMixin(LightningElement)
     // ─── Settings state ───
     @track showSettings = false;
     @track settingsAppUrl = DEFAULT_HTTPS_APP_URL;
-    @track settingsAccessToken = '';
-    @track settingsPhoneNumberId = '';
-    @track settingsWabaId = '';
+    @track settingsAccessToken = 'EAGjGudLgXTQBSkn9HggI0JPkicBiLiaUwBpV52EmNSdHRdjlsvaASzjYQjmJxoGKOqmlNIHRauYpMnk7MRKWXsfph2jqu390QIEk9TK2lmtqwxpKZC8vxbujQszgNRPzgMu7HQY4AKvXcq6hkVrxbxSXDxUnj11kuR4bBPwnkTjLSu4NHc8ruFoYvgGiHvQZDZD';
+    @track settingsPhoneNumberId = '1029572936908574';
+    @track settingsWabaId = '1468847934646076';
     @track settingsSaving = false;
 
     // ─── Full App Launch State ───
@@ -146,10 +146,10 @@ export default class WhatzuppChatPanel extends NavigationMixin(LightningElement)
         try {
             const savedUrl = localStorage.getItem('whatzupp_app_url');
             if (savedUrl) this.settingsAppUrl = savedUrl;
-            const savedToken = localStorage.getItem('whatzupp_access_token');
-            if (savedToken) this.settingsAccessToken = savedToken;
-            const savedPhoneId = localStorage.getItem('whatzupp_phone_number_id');
-            if (savedPhoneId) this.settingsPhoneNumberId = savedPhoneId;
+            
+            // Force use of permanent tokens over any expired local storage cache
+            this.settingsAccessToken = 'EAGjGudLgXTQBSkn9HggI0JPkicBiLiaUwBpV52EmNSdHRdjlsvaASzjYQjmJxoGKOqmlNIHRauYpMnk7MRKWXsfph2jqu390QIEk9TK2lmtqwxpKZC8vxbujQszgNRPzgMu7HQY4AKvXcq6hkVrxbxSXDxUnj11kuR4bBPwnkTjLSu4NHc8ruFoYvgGiHvQZDZD';
+            this.settingsPhoneNumberId = '1029572936908574';
             
             // Load fast replies
             const savedReplies = localStorage.getItem('whatzupp_fast_replies');

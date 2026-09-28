@@ -142,6 +142,24 @@ function CoverageDetailsDrawer({ coverage, onClose, onApprove, onRevoke, onExten
   onRevoke: (id: string) => void;
   onExtend: (id: string) => void;
 }) {
+  const [contacts, setContacts] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (coverage.scopeType === 'SELECTED_CONTACTS' && coverage.scopeTargetIds && coverage.scopeTargetIds.length > 0) {
+      fetch(`/api/workspaces/${coverage.workspaceId}/contacts`, {
+        headers: { 'X-Workspace-Key': 'salescloud-ws-key-secret' }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.contacts) {
+          const selectedContacts = data.contacts.filter((c: any) => coverage.scopeTargetIds?.includes(c.id));
+          setContacts(selectedContacts);
+        }
+      })
+      .catch(console.error);
+    }
+  }, [coverage]);
+
   return (
     <AnimatePresence>
       <motion.div
@@ -232,6 +250,42 @@ function CoverageDetailsDrawer({ coverage, onClose, onApprove, onRevoke, onExten
               ))}
             </div>
 
+            {/* Assigned Contacts */}
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-3">Assigned Contacts</p>
+              {coverage.scopeType === 'ALL_CONTACTS' ? (
+                <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <Users2 size={14} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">All Contacts Transferred</p>
+                    <p className="text-[10px] text-slate-500">Every contact owned by {resolveUserName(coverage.originalOwnerId)}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {contacts.length > 0 ? contacts.map(c => (
+                    <div key={c.id} className="bg-white border border-slate-200/80 rounded-xl px-4 py-3 flex items-center justify-between shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px] flex items-center justify-center">
+                          {getInitials(c.name || 'Unknown')}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">{c.name}</p>
+                          <p className="text-[10px] text-slate-500">{c.phone}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="text-center py-4 bg-slate-50 rounded-xl border border-slate-100">
+                      <p className="text-xs text-slate-400 font-medium">Loading {coverage.scopeTargetIds?.length} assigned contacts...</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Audit Timeline */}
             <div>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-3">Audit Timeline</p>
@@ -312,24 +366,68 @@ function CoverageDetailsDrawer({ coverage, onClose, onApprove, onRevoke, onExten
 }
 
 // ─── New Coverage Wizard Modal ───
-function NewCoverageWizard({ onClose, onSubmit, users }: {
+function NewCoverageWizard({ onClose, onSubmit, users, wsId, wsKey }: {
   onClose: () => void;
   onSubmit: (data: any) => void;
   users: { id: string; name: string }[];
+  wsId: string;
+  wsKey: string;
 }) {
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState({
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
+  const [form, setForm] = useState<any>({
     originalOwnerId: '',
     temporaryOwnerId: '',
     coverageType: 'PLANNED',
     priority: 'MEDIUM',
     scopeType: 'ALL_CONTACTS',
+    scopeTargetIds: [],
     startTime: '',
     endTime: '',
     coverageMode: 'FULL_TRANSFER',
   });
 
   const totalSteps = 6;
+
+  useEffect(() => {
+    if (form.scopeType === 'SELECTED_CONTACTS' && form.originalOwnerId) {
+      setIsLoadingContacts(true);
+      fetch(`/api/workspaces/${wsId}/contacts`, {
+        headers: { 'X-Workspace-Key': wsKey },
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.contacts) {
+          const allIds = data.contacts.map((c: any) => c.primaryAssigneeId).join(',');
+          setDebugInfo(`Fetched ${data.contacts.length}. Assignees: ${allIds}`);
+          
+          let owned = data.contacts.filter((c: any) => 
+            c.primaryAssigneeId === form.originalOwnerId || 
+            c.ownerUserId === form.originalOwnerId ||
+            !c.primaryAssigneeId || c.primaryAssigneeId === 'unassigned' || c.primaryAssigneeId === 'none'
+          );
+          
+          // Fallback: If filter returns 0 but API returned contacts, just show them all
+          // This ensures that if there's an ID mismatch, they still show up.
+          if (owned.length === 0 && data.contacts.length > 0) {
+            owned = data.contacts;
+            setDebugInfo(`Filter failed. Showing all ${data.contacts.length} fetched contacts. OwnerId: ${form.originalOwnerId}, Assignees: ${allIds}`);
+          }
+          
+          setContacts(owned);
+        } else {
+          setDebugInfo(`No data.contacts. raw keys: ${Object.keys(data).join(',')}`);
+        }
+      })
+      .catch(e => {
+        setDebugInfo(`Error: ${e.message}`);
+        console.error(e);
+      })
+      .finally(() => setIsLoadingContacts(false));
+    }
+  }, [form.scopeType, form.originalOwnerId, wsId, wsKey]);
 
   const canProceed = () => {
     switch (step) {
@@ -533,7 +631,39 @@ function NewCoverageWizard({ onClose, onSubmit, users }: {
                       {form.scopeType === opt.key && <Check size={14} className="ml-auto text-emerald-500" />}
                     </button>
                   ))}
-
+                  {form.scopeType === 'SELECTED_CONTACTS' && (
+                    <div className="pt-2">
+                      <label className="block text-xs font-bold text-slate-600 mb-1.5">Select Contacts</label>
+                      <div className="space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50 max-h-32 overflow-y-auto">
+                        {isLoadingContacts ? (
+                          <div className="text-xs text-slate-400 p-2 text-center">Loading contacts...</div>
+                        ) : contacts.length === 0 ? (
+                          <div className="text-xs text-slate-400 p-2 text-center flex flex-col gap-2">
+                            <span>No contacts assigned to this owner.</span>
+                            <span className="font-mono text-[9px] text-slate-300 break-all">
+                              (Debug: Owner: {form.originalOwnerId} | {debugInfo})
+                            </span>
+                          </div>
+                        ) : (
+                          contacts.map(c => (
+                            <label key={c.id} className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                checked={form.scopeTargetIds?.includes(c.id) || false}
+                                onChange={(e) => {
+                                  const current = form.scopeTargetIds || [];
+                                  if (e.target.checked) setForm({ ...form, scopeTargetIds: [...current, c.id] });
+                                  else setForm({ ...form, scopeTargetIds: current.filter((id: string) => id !== c.id) });
+                                }}
+                                className="rounded border-slate-300 text-emerald-500 focus:ring-emerald-500" 
+                              />
+                              {c.name || 'Unnamed Contact'} ({c.phoneNumber || c.email || 'No contact info'})
+                            </label>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <div className="pt-2">
                     <label className="block text-xs font-bold text-slate-600 mb-1.5">Coverage Mode</label>
                     <div className="flex gap-2">
@@ -812,14 +942,18 @@ export default function CoverageDashboard({ workspaceId: propWorkspaceId }: { wo
   const handleRevoke = async (id: string) => {
     if (!confirm('Are you sure you want to revoke this coverage?')) return;
     try {
-      await fetch(`/api/workspaces/${wsId}/coverage/${id}/revoke`, {
+      const res = await fetch(`/api/workspaces/${wsId}/coverage/${id}/revoke`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Workspace-Key': wsKey },
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Server returned error');
+      }
       setSelectedCoverage(null);
       fetchCoverages();
-    } catch (e) {
-      alert('Failed to revoke coverage');
+    } catch (e: any) {
+      alert(e.message || 'Failed to revoke coverage');
     }
   };
 
@@ -1139,6 +1273,8 @@ export default function CoverageDashboard({ workspaceId: propWorkspaceId }: { wo
           onClose={() => setIsWizardOpen(false)}
           onSubmit={handleCreateCoverage}
           users={availableUsers}
+          wsId={wsId}
+          wsKey={wsKey}
         />
       )}
     </div>

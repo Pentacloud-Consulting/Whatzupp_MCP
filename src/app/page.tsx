@@ -1,241 +1,340 @@
 'use client';
 
-// src/app/page.tsx
-// Public SaaS Landing Page for WhatZupp Platform v2.0
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare, ShieldCheck, Zap, Layers, Sparkles, CheckCircle2,
-  Users2, ArrowRight, ArrowUpRight, Lock, ChevronRight, BarChart3, Cloud, Workflow
+  Users2, ArrowRight, Play, Lock, BarChart3, Cloud, Workflow,
+  ChevronDown, Search, ArrowUpRight, Check, CheckCheck
 } from 'lucide-react';
 import ChatMockup from '@/components/landing/ChatMockup';
 
 export default function SaaSLandingPage() {
-  return (
-    <div className="min-h-screen bg-[#090D16] text-white selection:bg-[#25D366] selection:text-black overflow-x-hidden font-sans">
-      
-      {/* ── Background Glow Effects ── */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-gradient-to-b from-[#25D366]/15 via-emerald-600/5 to-transparent blur-[140px] rounded-full" />
-        <div className="absolute top-[25%] right-0 w-[500px] h-[500px] bg-blue-600/10 blur-[160px] rounded-full" />
-        <div className="absolute top-[60%] left-0 w-[600px] h-[600px] bg-[#25D366]/10 blur-[180px] rounded-full" />
-      </div>
+  const { scrollY } = useScroll();
+  const [scrolled, setScrolled] = useState(false);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const y1 = useTransform(scrollY, [0, 1000], [0, -100]);
+  const y2 = useTransform(scrollY, [0, 1000], [0, 150]);
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 selection:bg-[#00C853]/20 overflow-x-hidden font-sans">
+      
       {/* ── Top Navigation Bar ── */}
-      <nav className="relative z-50 border-b border-white/10 bg-[#090D16]/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <img src="/logo_final.png" alt="WhatZupp Logo" className="w-[210px] h-auto object-contain shrink-0 drop-shadow-lg" />
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled 
+          ? 'bg-white/70 backdrop-blur-xl border-b border-slate-200/50 shadow-sm py-3' 
+          : 'bg-transparent py-5'
+      }`}>
+        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
+          <Link href="/" className="flex items-center">
+            <img src="/logo_current.png" alt="WhatZupp Logo" className="h-14 md:h-20 object-contain" />
           </Link>
 
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-300">
-            <a href="#features" className="hover:text-[#25D366] transition-colors">Features</a>
-            <a href="#architecture" className="hover:text-[#25D366] transition-colors">Architecture</a>
-            <a href="#licensing" className="hover:text-[#25D366] transition-colors">Licensing</a>
-            <a href="#integrations" className="hover:text-[#25D366] transition-colors">Integrations</a>
+          <div className="hidden lg:flex items-center gap-8 text-sm font-semibold text-slate-600">
+            <a href="#products" className="hover:text-slate-900 flex items-center gap-1 transition-colors">Products <ChevronDown size={14} /></a>
+            <a href="#solutions" className="hover:text-slate-900 flex items-center gap-1 transition-colors">Solutions <ChevronDown size={14} /></a>
+            <a href="#pricing" className="hover:text-slate-900 transition-colors">Pricing</a>
+            <a href="#resources" className="hover:text-slate-900 flex items-center gap-1 transition-colors">Resources <ChevronDown size={14} /></a>
+            <a href="#integrations" className="hover:text-slate-900 transition-colors">Integrations</a>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="px-4 py-2 text-sm font-semibold text-gray-300 hover:text-white transition-colors"
-            >
-              Client Login
+          <div className="flex items-center gap-5">
+            <Link href="/login" className="hidden sm:block text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors">
+              Login
             </Link>
             <Link
               href="/signup"
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#20bd5a] hover:to-[#0f7a6e] text-white font-bold text-sm shadow-lg shadow-[#25D366]/20 hover:shadow-[#25D366]/30 transition-all flex items-center gap-2"
+              className="px-5 py-2.5 rounded-full bg-[#00C853] hover:bg-[#00B248] text-white font-bold text-sm shadow-lg shadow-[#00C853]/25 transition-all flex items-center gap-2 hover:-translate-y-0.5"
             >
-              Request Workspace <ArrowRight size={16} />
+              Request Demo <ArrowRight size={16} />
             </Link>
           </div>
         </div>
       </nav>
 
       {/* ── Hero Section ── */}
-      <section className="relative z-10 pt-16 pb-28 px-6 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          
-          <div className="lg:col-span-7 space-y-8 text-left">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#25D366]/30 bg-[#25D366]/10 text-[#25D366] text-xs font-semibold"
-            >
-              <Sparkles size={14} />
-              Enterprise Multi-Tenant WhatsApp SaaS Platform
-            </motion.div>
+      <section className="relative z-10 pt-32 pb-12 px-6 max-w-7xl mx-auto min-h-[85vh] flex items-center">
+        {/* Background Aurora Orbs */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
+           <div className="absolute top-[-5%] right-[5%] w-[900px] h-[900px] bg-gradient-to-br from-[#00C853]/10 to-teal-100/30 blur-[130px] rounded-full opacity-60" />
+           <div className="absolute top-[30%] left-[-15%] w-[700px] h-[700px] bg-gradient-to-tr from-emerald-50/50 to-green-100/20 blur-[110px] rounded-full opacity-50" />
+        </div>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="font-[Syne] text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-[1.1]"
-            >
-              Unified Customer <br />
-              Conversations for <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#25D366] via-emerald-400 to-teal-200">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center w-full">
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            className="lg:col-span-5 space-y-6 text-left relative z-20"
+          >
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50/80 backdrop-blur-sm border border-emerald-100/80 text-emerald-700 text-[11px] font-bold shadow-sm tracking-wide">
+              <Sparkles size={12} className="text-[#00C853]" />
+              Enterprise-Grade WhatsApp CRM Platform
+            </div>
+
+            <h1 className="font-['Inter',_sans-serif] text-5xl sm:text-[54px] lg:text-[56px] font-extrabold tracking-[-0.03em] text-slate-900 leading-[1.05]">
+              Unified Customer Conversations for <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00C853] via-emerald-500 to-teal-500">
                 Multi-Tenant Enterprises
               </span>
-            </motion.h1>
+            </h1>
 
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="text-gray-400 text-lg sm:text-xl max-w-xl font-normal leading-relaxed"
-            >
+            <p className="text-slate-500 text-[17px] max-w-[420px] font-medium leading-relaxed mt-2">
               Isolated tenant environments, Salesforce Cloud & SFMC connectors, approval-gated onboarding, and granular workspace permissions in one secure platform.
-            </motion.p>
+            </p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="flex flex-wrap items-center gap-4 pt-2"
-            >
+            <div className="flex flex-wrap items-center gap-4 pt-4">
               <Link
                 href="/signup"
-                className="px-7 py-3.5 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-black font-extrabold text-base shadow-xl shadow-[#25D366]/25 hover:shadow-[#25D366]/40 transition-all flex items-center gap-2.5"
+                className="px-8 py-3.5 rounded-full bg-[#00C853] hover:bg-[#00B248] text-white font-bold text-[15px] shadow-lg shadow-[#00C853]/20 transition-all flex items-center gap-2 hover:-translate-y-0.5"
               >
-                Onboard Your Company <ArrowRight size={18} />
+                Request a Demo <ArrowRight size={16} />
               </Link>
 
               <Link
-                href="/dashboard"
-                className="px-6 py-3.5 rounded-2xl border border-white/15 bg-white/5 hover:bg-white/10 text-white font-bold text-base transition-all flex items-center gap-2"
+                href="#video"
+                className="px-6 py-3.5 rounded-full bg-white text-slate-700 font-bold text-[15px] shadow-sm border border-slate-200 hover:shadow-md transition-all flex items-center gap-2.5 hover:-translate-y-0.5 group"
               >
-                Launch Demo App <ArrowUpRight size={18} />
+                <div className="w-6 h-6 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center group-hover:bg-emerald-50 group-hover:border-emerald-100 transition-colors">
+                  <Play size={10} className="text-slate-600 group-hover:text-[#00C853] ml-0.5" />
+                </div>
+                Watch Video
               </Link>
-            </motion.div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-y-4 gap-x-2 pt-6 text-[11px] font-bold text-slate-500 tracking-wide">
+               <div className="flex items-center gap-2">
+                 <div className="w-5 h-5 rounded-[6px] bg-emerald-50 flex items-center justify-center text-[#00C853]"><Layers size={11}/></div>
+                 Multi-Tenant Architecture
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="w-5 h-5 rounded-[6px] bg-blue-50 flex items-center justify-center text-blue-500"><Cloud size={11}/></div>
+                 Salesforce & SFMC Ready
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="w-5 h-5 rounded-[6px] bg-teal-50 flex items-center justify-center text-teal-500"><ShieldCheck size={11}/></div>
+                 Secure & Compliant
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="w-5 h-5 rounded-[6px] bg-purple-50 flex items-center justify-center text-purple-500"><Zap size={11}/></div>
+                 99.9% Uptime SLA
+               </div>
+            </div>
+          </motion.div>
 
-            {/* Feature Pills */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-white/10 text-xs text-gray-400"
-            >
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={16} className="text-[#25D366]" /> Strict Tenant Isolation
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={16} className="text-[#25D366]" /> SFMC Journey Builder
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={16} className="text-[#25D366]" /> Sales Cloud Sync
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Interactive Chat Mockup */}
-          <div className="lg:col-span-5 flex justify-center pt-8 lg:pt-0">
-            <ChatMockup />
+          {/* Static Hero Image Provided by User */}
+          <div className="lg:col-span-7 relative w-full hidden lg:flex items-center justify-center mt-8 xl:mt-0">
+             <img 
+                src="/hero%20Section%20image.png" 
+                alt="WhatZupp Dashboard Mockup" 
+                className="w-full h-auto object-contain drop-shadow-2xl hover:scale-[1.02] transition-transform duration-700" 
+             />
           </div>
         </div>
       </section>
 
-      {/* ── Multi-Tenant Security & Isolation Section ── */}
-      <section id="architecture" className="relative z-10 py-24 bg-[#0D1322] border-t border-b border-white/10">
+      {/* ── Logo Cloud ── */}
+      <section className="py-12 border-y border-slate-200/60 bg-white/40 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-6">
+           <div className="text-center mb-8">
+              <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Trusted by growing businesses</h4>
+              <h2 className="font-[Syne] text-3xl sm:text-4xl font-extrabold text-slate-900 mt-4">
+                 One Platform. Multiple Workspaces. <br/>
+                 <span className="text-[#00C853]">Infinite Possibilities.</span>
+              </h2>
+              <p className="text-slate-500 text-sm mt-3 font-medium">Enable your teams to connect, automate, and grow customer relationships across Salesforce, SFMC, and more.</p>
+           </div>
+           
+           <div className="flex flex-wrap justify-center items-center gap-12 sm:gap-20 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg" alt="Salesforce" className="h-10 hover:scale-110 transition-transform"/>
+              <img src="https://upload.wikimedia.org/wikipedia/commons/a/ab/Meta-Logo.png" alt="Meta" className="h-6 hover:scale-110 transition-transform"/>
+              <img src="https://upload.wikimedia.org/wikipedia/commons/e/e8/HubSpot_Logo.svg" alt="HubSpot" className="h-8 hover:scale-110 transition-transform"/>
+              <div className="text-2xl font-black tracking-tighter text-slate-800 hover:scale-110 transition-transform flex items-center"><Cloud size={28} className="text-blue-500 mr-2"/> SFMC</div>
+           </div>
+        </div>
+      </section>
+
+      {/* ── Security & Licensing ── */}
+      <section id="solutions" className="py-24 max-w-7xl mx-auto px-6">
+         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <div className="lg:col-span-4 space-y-6">
+               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-widest border border-emerald-100">
+                 <ShieldCheck size={12}/> Platform Overview
+               </div>
+               <h2 className="font-[Syne] text-3xl sm:text-4xl font-extrabold text-slate-900 leading-tight">
+                 Enterprise Tenant <br/>Security & Licensing <br/>Boundary
+               </h2>
+               <p className="text-slate-500 font-medium">
+                 Every client organization is completely isolated. User permissions are bounded strictly by tenant-purchased workspace licenses.
+               </p>
+               <Link href="/security" className="inline-flex px-6 py-3 rounded-full bg-[#00C853] hover:bg-[#00B248] text-white font-bold text-sm shadow-md transition-all items-center gap-2">
+                 Learn More <ArrowRight size={16}/>
+               </Link>
+            </div>
+            
+            <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-6">
+               {[
+                 { title: 'Tenant Isolation', icon: <Lock size={24}/>, desc: 'Separate data, users, workflows, and customizations for each organization.', color: 'text-emerald-500', bg: 'bg-emerald-50 border-emerald-100' },
+                 { title: 'Approval-Gated Access', icon: <Users2 size={24}/>, desc: 'Super admin control for onboarding, user invites, and workspace permissions.', color: 'text-blue-500', bg: 'bg-blue-50 border-blue-100' },
+                 { title: 'Workspace Licensing', icon: <Layers size={24}/>, desc: 'Flexibly enable Salesforce, SFMC, Zoho, HubSpot or more per tenant.', color: 'text-purple-500', bg: 'bg-purple-50 border-purple-100' }
+               ].map((item, i) => (
+                  <motion.div 
+                    key={i}
+                    whileHover={{ y: -5 }}
+                    className="p-8 rounded-[32px] bg-white border border-slate-100 shadow-xl shadow-slate-200/30 flex flex-col items-center text-center gap-4 relative overflow-hidden group"
+                  >
+                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-white to-transparent opacity-50 pointer-events-none"/>
+                     <div className={`w-14 h-14 rounded-2xl ${item.bg} ${item.color} flex items-center justify-center border shadow-sm group-hover:scale-110 transition-transform duration-300`}>
+                        {item.icon}
+                     </div>
+                     <h3 className="text-lg font-extrabold text-slate-900">{item.title}</h3>
+                     <p className="text-sm font-medium text-slate-500 leading-relaxed">{item.desc}</p>
+                  </motion.div>
+               ))}
+            </div>
+         </div>
+      </section>
+
+      {/* ── Features Bento Grid ── */}
+      <section id="products" className="py-24 bg-white/40 backdrop-blur-xl border-t border-slate-200/50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
-            <span className="text-[#25D366] font-bold text-xs uppercase tracking-widest px-3 py-1 rounded-full border border-[#25D366]/30 bg-[#25D366]/10">
-              5-Layer Defense Model
-            </span>
-            <h2 className="font-[Syne] text-3xl sm:text-5xl font-extrabold text-white">
-              Enterprise Tenant Security & Licensing Boundary
+            <div className="inline-flex items-center px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-widest border border-slate-200">
+               <Zap size={12} className="mr-1"/> Powerful Capabilities
+            </div>
+            <h2 className="font-[Syne] text-4xl sm:text-5xl font-extrabold text-slate-900">
+              Built for Modern <span className="text-[#00C853]">Omnichannel</span> Operations
             </h2>
-            <p className="text-gray-400 text-base sm:text-lg">
-              Every client organization is completely isolated. User permissions are bounded strictly by tenant-purchased workspace licenses.
+            <p className="text-slate-500 text-lg font-medium">
+              Complete WhatsApp messaging suite integrated seamlessly with enterprise CRM and marketing platforms.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="p-8 rounded-3xl bg-white/[0.03] border border-white/10 hover:border-[#25D366]/50 transition-all space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] flex items-center justify-center">
-                <ShieldCheck size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-white">Tenant Isolation</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Database records, WhatsApp webhook routes, and conversation threads are hard-scoped to each client’s unique tenant identifier.
-              </p>
-            </div>
-
-            <div className="p-8 rounded-3xl bg-white/[0.03] border border-white/10 hover:border-[#25D366]/50 transition-all space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-400 flex items-center justify-center">
-                <Lock size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-white">Approval-Gated Access</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                No self-service tenant spam. Platform Super Admins review every signup request before tenant and user provisioning.
-              </p>
-            </div>
-
-            <div className="p-8 rounded-3xl bg-white/[0.03] border border-white/10 hover:border-[#25D366]/50 transition-all space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
-                <Layers size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-white">Workspace Licensing</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Granularly grant workspace products (SFMC, Sales Cloud) at the tenant level, then delegate user permissions safely.
-              </p>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: <MessageSquare/>, title: 'Real-Time Chats', desc: 'Live WhatsApp conversations with contact context and rich media support.', color: 'text-emerald-500', bg: 'bg-emerald-50' },
+              { icon: <Cloud/>, title: 'SFMC Integration', desc: 'Sync subscribers, send journeys, and personalize conversations.', color: 'text-sky-500', bg: 'bg-sky-50' },
+              { icon: <Cloud/>, title: 'Sales Cloud Connector', desc: 'Auto-sync leads, contacts, opportunities, and activities.', color: 'text-indigo-500', bg: 'bg-indigo-50' },
+              { icon: <Workflow/>, title: 'Automation Engine', desc: 'Trigger automated flows, auto replies, and keyword-based journeys.', color: 'text-purple-500', bg: 'bg-purple-50' },
+              { icon: <BarChart3/>, title: 'Analytics & Insights', desc: 'Track team performance, response time, campaign results, and more.', color: 'text-indigo-500', bg: 'bg-indigo-50' },
+              { icon: <Zap/>, title: 'Fast Reply Hub', desc: 'Create quick replies, reusable templates, and smart responses.', color: 'text-amber-500', bg: 'bg-amber-50' },
+              { icon: <Users2/>, title: 'Contact Management', desc: 'Unified contact profiles across Salesforce, SFMC and more.', color: 'text-rose-500', bg: 'bg-rose-50' },
+              { icon: <ShieldCheck/>, title: 'Platform Audit Logs', desc: 'Full audit logs for user actions, access control, and compliance.', color: 'text-teal-500', bg: 'bg-teal-50' },
+            ].map((item, idx) => (
+              <motion.div 
+                key={idx} 
+                whileHover={{ scale: 1.02, y: -4 }}
+                className="p-6 rounded-[24px] bg-white border border-slate-100 shadow-lg shadow-slate-200/40 transition-all group relative overflow-hidden"
+              >
+                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0">
+                   <ArrowRight size={16} className="text-slate-300"/>
+                </div>
+                <div className={`w-12 h-12 rounded-2xl ${item.bg} ${item.color} flex items-center justify-center shadow-sm mb-5`}>
+                  {React.cloneElement(item.icon as React.ReactElement, { size: 22 })}
+                </div>
+                <h4 className="text-lg font-extrabold text-slate-900 mb-2">{item.title}</h4>
+                <p className="text-slate-500 font-medium text-sm leading-relaxed">{item.desc}</p>
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ── Core Workspace Modules Grid ── */}
-      <section id="features" className="relative z-10 py-24 max-w-7xl mx-auto px-6">
-        <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
-          <h2 className="font-[Syne] text-3xl sm:text-5xl font-extrabold text-white">
-            Built for Modern Omnichannel Operations
-          </h2>
-          <p className="text-gray-400 text-base sm:text-lg">
-            Complete WhatsApp messaging suite integrated seamlessly with enterprise CRMs.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[
-            { icon: <MessageSquare className="text-[#25D366]" />, title: 'Real-Time Chats', desc: 'Live WhatsApp webchats with automated response suggestions and media preview.' },
-            { icon: <Cloud className="text-sky-400" />, title: 'SFMC Integration', desc: 'Journey Builder activities, Data Extension sync, and automated transactional messages.' },
-            { icon: <Cloud className="text-indigo-400" />, title: 'Sales Cloud Connector', desc: 'Sync WhatsApp interactions directly to Salesforce Leads, Contacts, and Accounts.' },
-            { icon: <Workflow className="text-purple-400" />, title: 'Automation Engine', desc: 'Trigger automated WhatsApp flows based on user actions or webhook events.' },
-            { icon: <BarChart3 className="text-emerald-400" />, title: 'Analytics & Insights', desc: 'Track message delivery rates, read receipts, and agent response performance.' },
-            { icon: <Zap className="text-amber-400" />, title: 'Fast Reply Hub', desc: 'Pre-approved message templates for rapid agent resolution and customer support.' },
-            { icon: <Users2 className="text-rose-400" />, title: 'Contact Management', desc: 'Centralized database with custom metadata tagging and workspace filtering.' },
-            { icon: <ShieldCheck className="text-teal-400" />, title: 'Platform Audit Logs', desc: 'Full audit log trail for tenant creation, user approvals, and security events.' },
-          ].map((item, idx) => (
-            <div key={idx} className="p-6 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-white/20 transition-all space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-                {item.icon}
-              </div>
-              <h4 className="text-base font-bold text-white">{item.title}</h4>
-              <p className="text-gray-400 text-xs leading-relaxed">{item.desc}</p>
+      {/* ── CTA Section ── */}
+      <section className="py-24 relative overflow-hidden">
+         <div className="absolute inset-0 bg-[#00C853]/5 -z-20"/>
+         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay -z-10"/>
+         
+         <div className="max-w-5xl mx-auto px-6 text-center">
+            <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-white text-emerald-600 text-xs font-bold uppercase tracking-widest border border-emerald-100 shadow-sm mb-6">
+               Get Started Today
             </div>
-          ))}
-        </div>
+            <h2 className="font-[Syne] text-5xl sm:text-6xl font-extrabold text-slate-900 leading-tight mb-6">
+               Transform Your <br/>
+               <span className="text-[#00C853]">Customer Conversations</span>
+            </h2>
+            <p className="text-slate-600 text-lg sm:text-xl font-medium max-w-2xl mx-auto mb-10">
+               Join modern enterprises using WhatZupp to deliver smarter, faster, and more personalized customer experiences.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+               <Link
+                 href="/signup"
+                 className="px-8 py-4 rounded-full bg-[#00C853] hover:bg-[#00B248] text-white font-bold text-lg shadow-xl shadow-[#00C853]/30 transition-all flex items-center gap-2 hover:-translate-y-1"
+               >
+                 Request a Demo <ArrowRight size={20} />
+               </Link>
+               <Link
+                 href="/contact"
+                 className="px-8 py-4 rounded-full bg-white text-slate-800 font-bold text-lg shadow-md border border-slate-100 hover:shadow-lg transition-all flex items-center gap-2 hover:-translate-y-1"
+               >
+                 Talk to Sales
+               </Link>
+            </div>
+         </div>
       </section>
 
       {/* ── Footer ── */}
-      <footer className="relative z-10 border-t border-white/10 bg-[#060911] py-12 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-[#25D366] flex items-center justify-center text-black font-bold">
-              W
-            </div>
-            <span className="font-[Syne] font-bold text-white text-base">WhatZupp SaaS v2.0</span>
-          </div>
-          <div className="text-xs text-gray-500">
-            © {new Date().getFullYear()} WhatZupp SaaS. All rights reserved. Multi-Tenant Enterprise Edition.
-          </div>
-          <div className="flex items-center gap-4 text-xs text-gray-400">
-            <Link href="/login" className="hover:text-white">Login</Link>
-            <Link href="/signup" className="hover:text-white">Request Access</Link>
-            <Link href="/admin/dashboard" className="hover:text-white text-[#25D366]">Super Admin</Link>
-          </div>
+      <footer className="border-t border-slate-200 bg-white pt-20 pb-12 px-6">
+        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-10 mb-16">
+           <div className="col-span-2 lg:col-span-2 space-y-6">
+              <div className="flex items-center gap-2">
+                 <div className="w-8 h-8 rounded-xl bg-[#00C853] flex items-center justify-center text-white font-extrabold text-lg">W</div>
+                 <span className="font-[Syne] font-extrabold text-slate-900 text-xl tracking-tight">WhatZupp</span>
+              </div>
+              <p className="text-slate-500 text-sm max-w-sm font-medium leading-relaxed">
+                 The enterprise-grade WhatsApp CRM platform. Secure, multi-tenant, and seamlessly integrated with Salesforce and SFMC.
+              </p>
+           </div>
+           
+           <div>
+              <h4 className="font-bold text-slate-900 mb-4">Product</h4>
+              <ul className="space-y-3 text-sm font-medium text-slate-500">
+                 <li><Link href="#" className="hover:text-[#00C853]">Real-Time Chat</Link></li>
+                 <li><Link href="#" className="hover:text-[#00C853]">Automation</Link></li>
+                 <li><Link href="#" className="hover:text-[#00C853]">Salesforce Sync</Link></li>
+                 <li><Link href="#" className="hover:text-[#00C853]">SFMC Journeys</Link></li>
+                 <li><Link href="#" className="hover:text-[#00C853]">Security</Link></li>
+              </ul>
+           </div>
+           
+           <div>
+              <h4 className="font-bold text-slate-900 mb-4">Resources</h4>
+              <ul className="space-y-3 text-sm font-medium text-slate-500">
+                 <li><Link href="#" className="hover:text-[#00C853]">Documentation</Link></li>
+                 <li><Link href="#" className="hover:text-[#00C853]">API Reference</Link></li>
+                 <li><Link href="#" className="hover:text-[#00C853]">Help Center</Link></li>
+                 <li><Link href="#" className="hover:text-[#00C853]">Blog</Link></li>
+              </ul>
+           </div>
+
+           <div>
+              <h4 className="font-bold text-slate-900 mb-4">Company</h4>
+              <ul className="space-y-3 text-sm font-medium text-slate-500">
+                 <li><Link href="#" className="hover:text-[#00C853]">About</Link></li>
+                 <li><Link href="#" className="hover:text-[#00C853]">Customers</Link></li>
+                 <li><Link href="#" className="hover:text-[#00C853]">Contact</Link></li>
+                 <li><Link href="#" className="hover:text-[#00C853]">Privacy Policy</Link></li>
+              </ul>
+           </div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto pt-8 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
+           <div className="text-xs font-semibold text-slate-400">
+              © {new Date().getFullYear()} WhatZupp Platform. All rights reserved.
+           </div>
+           <div className="flex items-center gap-6">
+              <Link href="#" className="text-slate-400 hover:text-slate-600 transition-colors"><MessageSquare size={18}/></Link>
+           </div>
         </div>
       </footer>
     </div>

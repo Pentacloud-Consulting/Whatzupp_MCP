@@ -201,12 +201,33 @@ export default function BroadcastsView() {
 
       await Promise.all(promises);
 
-      setResult({
+      const payload = {
         total: phoneList.length,
         success: successCount,
         failed: failedCount,
         results
-      });
+      };
+
+      setResult(payload);
+
+      // Save broadcast to Salesforce
+      try {
+        await fetch('/api/broadcasts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            campaignName,
+            templateName: selectedTemplate.name,
+            workspaceId: activeWorkspace?.id || 'salescloud-ws-1',
+            total: payload.total,
+            success: payload.success,
+            failed: payload.failed
+          })
+        });
+      } catch (e) {
+        console.error('Failed to save broadcast to Salesforce', e);
+      }
+
     } catch (err: any) {
       setSendError(err.message || 'Failed to send broadcast');
     } finally {

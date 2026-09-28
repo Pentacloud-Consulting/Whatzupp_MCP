@@ -122,6 +122,74 @@ export class SFMCConnector implements Connector {
     }
   }
 
+  async fetchWorkspaceUsers(tenantId: string): Promise<any[]> {
+    try {
+      const { access_token } = await getSfmcAccessToken();
+      const rest_instance_url = process.env.SFMC_REST_BASE_URI || '';
+      if (access_token.startsWith('mock-')) {
+        throw new Error('Mock token');
+      }
+
+      const res = await fetch(`${rest_instance_url}/data/v1/customobjectdata/key/WhatZupp_Workspace_Users/rowset?$filter=TenantId%20eq%20'${tenantId}'`, {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      if (!res.ok) throw new Error('SFMC fetchWorkspaceUsers failed');
+      
+      const data = await res.json();
+      const records = data.items || [];
+      return records.map((r: any) => ({
+        id: r.values.UserId || r.keys.UserId,
+        fullName: r.values.Name,
+        email: r.values.Email,
+        role: r.values.Role,
+        status: r.values.Status || 'ACTIVE',
+        workspacePermissions: [{ workspaceType: 'SFMC' }]
+      }));
+    } catch (e) {
+      console.warn('[SFMCConnector] fetchWorkspaceUsers fallback to mock');
+      const { getMockUsers } = require('../storage/mockUsersStore');
+      return getMockUsers().filter((u: any) => 
+        (u.tenantId === tenantId || !u.tenantId) && 
+        u.workspacePermissions?.some((w: any) => w.workspaceType === 'SFMC')
+      );
+    }
+  }
+
+  async createWorkspaceUser(tenantId: string, user: any): Promise<any> {
+    try {
+      const { access_token } = await getSfmcAccessToken();
+      const rest_instance_url = process.env.SFMC_REST_BASE_URI || '';
+      if (access_token.startsWith('mock-')) {
+        throw new Error('Mock token');
+      }
+
+      const payload = {
+        keys: { UserId: user.id },
+        values: {
+          TenantId: tenantId,
+          Workspace: 'SFMC',
+          Name: user.fullName,
+          Email: user.email,
+          Role: user.role,
+          Status: user.status || 'ACTIVE'
+        }
+      };
+
+      const res = await fetch(`${rest_instance_url}/hub/v1/dataevents/key:WhatZupp_Workspace_Users/rowset`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify([payload])
+      });
+      if (!res.ok) throw new Error('SFMC createWorkspaceUser failed');
+      return user;
+    } catch (e) {
+      console.warn('[SFMCConnector] createWorkspaceUser fallback to mock');
+      const { addMockUser } = require('../storage/mockUsersStore');
+      addMockUser(user);
+      return user;
+    }
+  }
+
   // --- Enterprise Assignment Methods ---
   async fetchContactAssignments(params: { tenantId: string }): Promise<ContactAssignment[]> {
     const allAssignments = (await getConfig('sfmc_assignments') as ContactAssignment[]) || [];

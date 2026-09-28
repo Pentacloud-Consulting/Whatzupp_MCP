@@ -132,6 +132,9 @@ export interface Connector {
     teamId?: string;
   }): Promise<WorkspaceContactResult[]>;
 
+  fetchWorkspaceUsers?(tenantId: string): Promise<any[]>;
+  createWorkspaceUser?(tenantId: string, user: any): Promise<any>;
+
   fetchContactAssignments?(params: { tenantId: string }): Promise<ContactAssignment[]>;
   upsertContactAssignment?(assignment: ContactAssignment): Promise<boolean>;
   logAssignmentAudit?(audit: AssignmentAudit): Promise<boolean>;

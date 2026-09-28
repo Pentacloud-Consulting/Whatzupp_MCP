@@ -17,7 +17,31 @@
         <type>AutoNumber</type>
     </nameField>
     <pluralLabel>WhatZupp Coverage Transfers</pluralLabel>
-    <searchLayouts/>
+    <searchLayouts>
+        <customTabListAdditionalFields>Original_Owner_Id__c</customTabListAdditionalFields>
+        <customTabListAdditionalFields>Temporary_Owner_Id__c</customTabListAdditionalFields>
+        <customTabListAdditionalFields>Status__c</customTabListAdditionalFields>
+        <customTabListAdditionalFields>Effective_Status__c</customTabListAdditionalFields>
+        <customTabListAdditionalFields>Start_Time__c</customTabListAdditionalFields>
+        <customTabListAdditionalFields>End_Time__c</customTabListAdditionalFields>
+        <searchResultsAdditionalFields>Original_Owner_Id__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>Temporary_Owner_Id__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>Status__c</searchResultsAdditionalFields>
+    </searchLayouts>
     <sharingModel>ReadWrite</sharingModel>
     <visibility>Public</visibility>
+    <listViews>
+        <fullName>All</fullName>
+        <columns>NAME</columns>
+        <columns>Original_Owner_Id__c</columns>
+        <columns>Temporary_Owner_Id__c</columns>
+        <columns>Status__c</columns>
+        <columns>Effective_Status__c</columns>
+        <columns>Approval_Status__c</columns>
+        <columns>Start_Time__c</columns>
+        <columns>End_Time__c</columns>
+        <columns>Is_All_Contacts__c</columns>
+        <filterScope>Everything</filterScope>
+        <label>All Coverages</label>
+    </listViews>
 </CustomObject>

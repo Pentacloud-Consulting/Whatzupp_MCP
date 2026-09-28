@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>WhatZupp_User__c</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>WhatZupp_User__c.User_Id__c</members>
+        <members>WhatZupp_User__c.Tenant_Id__c</members>
+        <members>WhatZupp_User__c.Workspace__c</members>
+        <members>WhatZupp_User__c.Name__c</members>
+        <members>WhatZupp_User__c.Email__c</members>
+        <members>WhatZupp_User__c.Role__c</members>
+        <members>WhatZupp_User__c.Status__c</members>
+        <members>WhatZupp_User__c.Password__c</members>
+        <name>CustomField</name>
+    </types>
+    <types>
+        <members>WhatZupp_User__c-WhatZupp User Layout</members>
+        <name>Layout</name>
+    </types>
+    <types>
+        <members>WhatZupp_User__c</members>
+        <name>CustomTab</name>
+    </types>
+    <types>
+        <members>WhatZupp_Admin</members>
+        <name>PermissionSet</name>
+    </types>
+    <version>60.0</version>
+</Package>
