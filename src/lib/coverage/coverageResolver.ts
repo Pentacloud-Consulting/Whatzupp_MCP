@@ -40,7 +40,8 @@ export class CoverageRuntimeResolver {
   static async resolveOwnership(
     tenantId: string,
     originalOwnerId: string,
-    contactId: string
+    contactId: string,
+    preloadedCoverages?: CoverageTransfer[]
   ): Promise<{
     resolvedOwnerId: string;
     isCovered: boolean;
@@ -48,7 +49,7 @@ export class CoverageRuntimeResolver {
     endTime?: string;
     escalation?: EscalationResult;
   }> {
-    const coverages = await this.getActiveCoverages(tenantId);
+    const coverages = preloadedCoverages || await this.getActiveCoverages(tenantId);
     
     // 1. Filter active/approved coverages for this owner
     const now = Date.now();

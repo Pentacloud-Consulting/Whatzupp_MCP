@@ -47,6 +47,7 @@ export class SalesCloudConnector implements Connector {
     teamId?: string;
   }): Promise<WorkspaceContactResult[]> {
     const limit = params.limit || 50;
+    let activeCoverages: any[] = [];
 
     try {
       let { access_token, instance_url } = await getSalesCloudAccessToken();
@@ -153,6 +154,12 @@ export class SalesCloudConnector implements Connector {
       }
 
       // Assignments are now read directly from SF WhatZupp_Assignee__c field (already in results)
+      if (params.tenantId) {
+        try {
+          activeCoverages = await this.fetchCoverageTransfers({ tenantId: params.tenantId });
+        } catch { /* skip if failure */ }
+      }
+
       // Apply coverage overlay if needed
       let finalResults = await Promise.all(results.map(async c => {
         let ownerId = c.ownerUserId;
@@ -165,7 +172,7 @@ export class SalesCloudConnector implements Connector {
 
         if (assigneeId && params.tenantId) {
           try {
-            const coverage = await CoverageRuntimeResolver.resolveOwnership(params.tenantId, assigneeId, c.id);
+            const coverage = await CoverageRuntimeResolver.resolveOwnership(params.tenantId, assigneeId, c.id, activeCoverages);
             if (coverage.isCovered) {
               originalAssigneeId = assigneeId;
               assigneeId = coverage.resolvedOwnerId;
@@ -218,7 +225,7 @@ export class SalesCloudConnector implements Connector {
         let coverageEndTime = undefined;
 
         if (assigneeId && params.tenantId) {
-          const coverage = await CoverageRuntimeResolver.resolveOwnership(params.tenantId, assigneeId, c.id);
+          const coverage = await CoverageRuntimeResolver.resolveOwnership(params.tenantId, assigneeId, c.id, activeCoverages);
           if (coverage.isCovered) {
             originalAssigneeId = assigneeId;
             assigneeId = coverage.resolvedOwnerId;
