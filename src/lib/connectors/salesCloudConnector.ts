@@ -82,14 +82,14 @@ export class SalesCloudConnector implements Connector {
       }
 
       // Query Leads from Salesforce (all Leads in org, ordered by newest first)
-      let leadSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c FROM Lead ORDER BY CreatedDate DESC LIMIT ${limit}`;
+      let leadSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c FROM Lead ORDER BY CreatedDate DESC LIMIT ${limit}`;
       // Query Contacts from Salesforce (ONLY those created/synced via WhatZupp, ignoring standard sample contacts)
-      let contactSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c FROM Contact WHERE WhatZupp_Sync_Status__c != null ORDER BY LastModifiedDate DESC LIMIT ${limit}`;
+      let contactSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c FROM Contact WHERE WhatZupp_Sync_Status__c != null ORDER BY LastModifiedDate DESC LIMIT ${limit}`;
 
       if (params.search) {
         const q = params.search.replace(/'/g, "\\'");
-        leadSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c FROM Lead WHERE (Name LIKE '%${q}%' OR Phone LIKE '%${q}%' OR MobilePhone LIKE '%${q}%' OR Email LIKE '%${q}%' OR Company LIKE '%${q}%') ORDER BY CreatedDate DESC LIMIT ${limit}`;
-        contactSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c FROM Contact WHERE WhatZupp_Sync_Status__c != null AND (Name LIKE '%${q}%' OR Phone LIKE '%${q}%' OR MobilePhone LIKE '%${q}%' OR Email LIKE '%${q}%') ORDER BY LastModifiedDate DESC LIMIT ${limit}`;
+        leadSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c FROM Lead WHERE (Name LIKE '%${q}%' OR Phone LIKE '%${q}%' OR MobilePhone LIKE '%${q}%' OR Email LIKE '%${q}%' OR Company LIKE '%${q}%') ORDER BY CreatedDate DESC LIMIT ${limit}`;
+        contactSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c FROM Contact WHERE WhatZupp_Sync_Status__c != null AND (Name LIKE '%${q}%' OR Phone LIKE '%${q}%' OR MobilePhone LIKE '%${q}%' OR Email LIKE '%${q}%') ORDER BY LastModifiedDate DESC LIMIT ${limit}`;
       }
 
       let headers = { Authorization: `Bearer ${access_token}` };
@@ -127,6 +127,8 @@ export class SalesCloudConnector implements Connector {
             company: r.Company || 'Salesforce Lead',
             lastSyncedAt: r.WhatZupp_Last_Synced__c || new Date().toISOString(),
             labels: r.WhatZupp_Labels__c || '',
+            primaryAssigneeId: r.WhatZupp_Assignee__c || undefined,
+            ownerUserId: r.WhatZupp_Assignee__c || undefined,
           });
         });
       }
@@ -144,37 +146,36 @@ export class SalesCloudConnector implements Connector {
             company: r.Company || 'Salesforce Contact',
             lastSyncedAt: r.WhatZupp_Last_Synced__c || new Date().toISOString(),
             labels: r.WhatZupp_Labels__c || '',
+            primaryAssigneeId: r.WhatZupp_Assignee__c || undefined,
+            ownerUserId: r.WhatZupp_Assignee__c || undefined,
           });
         });
       }
 
-      const allAssignments = (await getConfig('sc_assignments') as ContactAssignment[]) || [];
-      // Apply enterprise ownership assignment mapping to real Salesforce results
+      // Assignments are now read directly from SF WhatZupp_Assignee__c field (already in results)
+      // Apply coverage overlay if needed
       let finalResults = await Promise.all(results.map(async c => {
-        const assignment = allAssignments.find(a => a.contactId === c.id && (!params.tenantId || a.tenantId === params.tenantId));
-        const isUnassigned = !assignment || !assignment.primaryAssigneeId || assignment.primaryAssigneeId === 'unassigned' || assignment.primaryAssigneeId === 'none';
-        
-        let ownerId = isUnassigned ? undefined : assignment?.ownerUserId;
-        let assigneeId = isUnassigned ? undefined : assignment?.primaryAssigneeId;
+        let ownerId = c.ownerUserId;
+        let assigneeId = c.primaryAssigneeId;
         
         // --- PHASE 4: COVERAGE OVERLAY INTERCEPTOR ---
-        // If there's an assignee, check if they have active coverage
         let originalAssigneeId = undefined;
         let isCovered = false;
         let coverageEndTime = undefined;
 
         if (assigneeId && params.tenantId) {
-          const coverage = await CoverageRuntimeResolver.resolveOwnership(params.tenantId, assigneeId, c.id);
-          if (coverage.isCovered) {
-            originalAssigneeId = assigneeId;
-            assigneeId = coverage.resolvedOwnerId;
-            isCovered = true;
-            coverageEndTime = coverage.endTime;
-            // Also override the main owner if it was set to the original assignee
-            if (ownerId === assignment?.primaryAssigneeId) {
-              ownerId = coverage.resolvedOwnerId;
+          try {
+            const coverage = await CoverageRuntimeResolver.resolveOwnership(params.tenantId, assigneeId, c.id);
+            if (coverage.isCovered) {
+              originalAssigneeId = assigneeId;
+              assigneeId = coverage.resolvedOwnerId;
+              isCovered = true;
+              coverageEndTime = coverage.endTime;
+              if (ownerId === c.primaryAssigneeId) {
+                ownerId = coverage.resolvedOwnerId;
+              }
             }
-          }
+          } catch { /* coverage resolver optional */ }
         }
         // ---------------------------------------------
 
@@ -182,8 +183,6 @@ export class SalesCloudConnector implements Connector {
           ...c,
           ownerUserId: ownerId,
           primaryAssigneeId: assigneeId,
-          createdByUserId: assignment?.createdByUserId || c.createdByUserId,
-          teamId: assignment?.teamId || c.teamId,
           originalAssigneeId,
           isCovered,
           coverageEndTime
@@ -254,37 +253,53 @@ export class SalesCloudConnector implements Connector {
     }
   }
 
-  // --- Enterprise Assignment Methods ---
+  // --- Enterprise Assignment Methods (Salesforce-backed) ---
   async fetchContactAssignments(params: { tenantId: string }): Promise<ContactAssignment[]> {
-    const allAssignments = (await getConfig('sc_assignments') as ContactAssignment[]) || [];
-    return allAssignments.filter(a => a.tenantId === params.tenantId);
+    // Assignments are now stored directly on Lead/Contact records via WhatZupp_Assignee__c
+    // This method returns empty — the assignee data is already in fetchContacts results
+    return [];
   }
 
   async upsertContactAssignment(assignment: ContactAssignment): Promise<boolean> {
     const isUnassigning = !assignment.primaryAssigneeId || assignment.primaryAssigneeId === 'unassigned' || assignment.primaryAssigneeId === 'none';
-    const cleanAssignment: ContactAssignment = {
-      ...assignment,
-      primaryAssigneeId: isUnassigning ? undefined : assignment.primaryAssigneeId,
-      ownerUserId: isUnassigning ? undefined : assignment.ownerUserId,
-      status: isUnassigning ? 'Unassigned' : (assignment.status || 'Active'),
-    };
-    const allAssignments = (await getConfig('sc_assignments') as ContactAssignment[]) || [];
-    const existingIndex = allAssignments.findIndex(
-      a => a.contactId === assignment.contactId && a.tenantId === assignment.tenantId
-    );
-    if (existingIndex >= 0) {
-      allAssignments[existingIndex] = cleanAssignment;
-    } else {
-      allAssignments.push({ ...cleanAssignment, id: `assign_${Date.now()}` });
+    const assigneeValue = isUnassigning ? '' : assignment.primaryAssigneeId;
+    const contactId = assignment.contactId;
+
+    // Determine if it's a Lead or Contact by the ID prefix
+    const objectType = contactId.startsWith('003') ? 'Contact' : 'Lead';
+
+    try {
+      const { access_token, instance_url } = await getSalesCloudAccessToken();
+      const res = await fetch(`${instance_url}/services/data/v60.0/sobjects/${objectType}/${contactId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          WhatZupp_Assignee__c: assigneeValue || null
+        })
+      });
+
+      if (!res.ok && res.status !== 204) {
+        const errText = await res.text().catch(() => '');
+        console.error(`[SalesCloudConnector] upsertContactAssignment failed for ${contactId}:`, errText);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('[SalesCloudConnector] upsertContactAssignment error:', err);
+      return false;
     }
-    await setConfig('sc_assignments', allAssignments);
-    return true;
   }
 
   async logAssignmentAudit(audit: AssignmentAudit): Promise<boolean> {
-    const allAudits = (await getConfig('sc_audits') as AssignmentAudit[]) || [];
-    allAudits.push({ ...audit, id: `audit_${Date.now()}` });
-    await setConfig('sc_audits', allAudits);
+    // Audit logging is optional — skip silently if it fails
+    try {
+      const allAudits = (await getConfig('sc_audits') as AssignmentAudit[]) || [];
+      allAudits.push({ ...audit, id: `audit_${Date.now()}` });
+      await setConfig('sc_audits', allAudits);
+    } catch { /* non-critical */ }
     return true;
   }
   // -------------------------------------

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>WhatZupp_Assignee__c</fullName>
+    <label>WhatZupp Assignee</label>
+    <description>Stores the WhatZupp user ID assigned to this Lead. Used for enterprise contact assignment routing.</description>
+    <type>Text</type>
+    <length>255</length>
+    <required>false</required>
+    <externalId>false</externalId>
+    <unique>false</unique>
+</CustomField>

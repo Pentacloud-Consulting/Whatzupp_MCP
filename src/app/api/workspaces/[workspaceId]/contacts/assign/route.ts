@@ -40,8 +40,9 @@ export async function POST(
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    const assignmentPromises = contactIds.map(async (contactId) => {
-      // Upsert the assignment
+    // Process assignments sequentially to avoid race conditions
+    for (const contactId of contactIds) {
+      // Upsert the assignment (PATCH Lead/Contact in Salesforce)
       await auth.connector!.upsertContactAssignment!({
         tenantId,
         workspaceId,
@@ -55,9 +56,9 @@ export async function POST(
         workspaceType: auth.connector!.workspaceType
       });
 
-      // Audit log
+      // Audit log (non-blocking)
       if (auth.connector!.logAssignmentAudit) {
-        await auth.connector!.logAssignmentAudit({
+        auth.connector!.logAssignmentAudit({
           tenantId,
           workspaceId,
           contactId,
@@ -65,11 +66,9 @@ export async function POST(
           whoId: auth.user!.userId,
           timestamp: new Date().toISOString(),
           toUserId: assigneeId
-        });
+        }).catch(() => {});
       }
-    });
-
-    await Promise.all(assignmentPromises);
+    }
 
     return NextResponse.json({ success: true, workspaceId, assignedCount: contactIds.length });
   } catch (error: any) {
