@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { SalesCloudConnector } from '@/lib/connectors/salesCloudConnector';
+import { getSalesCloudAccessToken } from '@/lib/salesCloudAuth';
 
 export async function POST(request: Request) {
   try {
@@ -10,9 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Campaign name is required' }, { status: 400 });
     }
 
-    const connector = new SalesCloudConnector();
-    const access_token = await connector.getSalesCloudAccessToken();
-    const instance_url = process.env.NEXT_PUBLIC_WORKSPACE_SALESCLOUD_INSTANCE_URL;
+    const { access_token, instance_url } = await getSalesCloudAccessToken();
 
     const payload = {
       Name: campaignName,
