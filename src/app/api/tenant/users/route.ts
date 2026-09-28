@@ -3,9 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest, hashPassword } from '@/lib/auth';
 import { connectToMongoDB, TenantModel, TenantLicenseModel, AuditLogModel } from '@/lib/db/mongodb';
 import { SalesCloudConnector } from '@/lib/connectors/salesCloudConnector';
-import { SFMCConnector } from '@/lib/connectors/sfmcConnector';
 import { v4 as uuidv4 } from 'uuid';
-import { getMockUsers, addMockUser, updateMockUser, deleteMockUser } from '@/lib/storage/mockUsersStore';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,58 +12,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 });
     }
 
-    try {
-      await connectToMongoDB();
-    } catch (e) {
-      console.warn('MongoDB not connected, falling back to mock users.');
-      let allMockUsers = [...getMockUsers()];
-      if (!allMockUsers.find(u => u.id === (session.userId || '1'))) {
-        allMockUsers.unshift({ id: session.userId || '1', fullName: session.fullName, email: session.email, role: session.role, status: 'ACTIVE', workspacePermissions: [{ workspaceType: 'SFMC' }] });
-      }
-      return NextResponse.json({
-        success: true,
-        users: allMockUsers.map((u: any) => {
-          const { passwordHash, ...safeUser } = u;
-          return safeUser;
-        }),
-        usage: { plan: 'Growth', userLimit: 10, activeUsers: allMockUsers.length, pendingInvites: 0, salesCloudUsers: 0, sfmcUsers: allMockUsers.length }
-      });
-    }
-
     const tenantId = session.tenantId || 'PENTA001';
-    
-    // Fetch tenant from MongoDB
-    const tenant = await TenantModel.findOne({ tenantId });
-    const license = await TenantLicenseModel.findOne({ tenantId });
 
-    const workspaces = tenant?.licensedWorkspaces || ['SALES_CLOUD', 'SFMC'];
-    
+    // Fetch all users from Salesforce WhatZupp_User__c
+    const scConnector = new SalesCloudConnector();
     let allUsers: any[] = [];
-    
-    if (workspaces.includes('SALES_CLOUD')) {
-      const scConnector = new SalesCloudConnector();
-      const scUsers = await scConnector.fetchWorkspaceUsers(tenantId);
-      allUsers = [...allUsers, ...scUsers];
-    }
-    
-    if (workspaces.includes('SFMC')) {
-      const sfmcConnector = new SFMCConnector();
-      const sfmcUsers = await sfmcConnector.fetchWorkspaceUsers(tenantId);
-      
-      // Deduplicate if a user exists in both (by email or id)
-      sfmcUsers.forEach((su: any) => {
-        const existing = allUsers.find(u => u.email === su.email || u.id === su.id);
-        if (existing) {
-          if (!existing.workspacePermissions.some((wp: any) => wp.workspaceType === 'SFMC')) {
-            existing.workspacePermissions.push({ workspaceType: 'SFMC' });
-          }
-        } else {
-          allUsers.push(su);
-        }
-      });
+
+    try {
+      allUsers = await scConnector.fetchWorkspaceUsers(tenantId);
+    } catch (err) {
+      console.error('[GET /tenant/users] Failed to fetch users from Salesforce:', err);
     }
 
-    // Ensure session user is in the list for mock fallback environments
+    // Ensure session user is visible in their own list
     if (!allUsers.find(u => u.id === session.userId)) {
       allUsers.unshift({
         id: session.userId || '1',
@@ -73,7 +32,7 @@ export async function GET(request: NextRequest) {
         email: session.email,
         role: session.role,
         status: 'ACTIVE',
-        workspacePermissions: [{ workspaceType: 'SFMC' }]
+        workspacePermissions: (session.workspacePermissions || ['SFMC']).map(w => ({ workspaceType: w }))
       });
     }
 
@@ -89,15 +48,29 @@ export async function GET(request: NextRequest) {
       if (u.workspacePermissions?.some((wp: any) => wp.workspaceType === 'SFMC')) sfmcCount++;
     });
 
+    // Try to get tenant plan/license info from MongoDB (optional, non-blocking)
+    let plan = 'ENTERPRISE';
+    let userLimit = 10;
+    try {
+      await connectToMongoDB();
+      const tenant = await TenantModel.findOne({ tenantId });
+      const license = await TenantLicenseModel.findOne({ tenantId });
+      if (tenant) plan = tenant.plan || 'ENTERPRISE';
+      if (license) userLimit = license.userLimit || tenant?.maxUsers || 50;
+      else if (tenant) userLimit = tenant.maxUsers || 50;
+    } catch {
+      // MongoDB not available — use defaults
+    }
+
     return NextResponse.json({
       success: true,
       users: allUsers.map(u => {
-        const { passwordHash, ...safeUser } = u;
+        const { passwordHash, password, ...safeUser } = u;
         return safeUser;
       }),
       usage: {
-        plan: tenant?.plan || 'ENTERPRISE',
-        userLimit: license?.userLimit || tenant?.maxUsers || 50,
+        plan,
+        userLimit,
         activeUsers,
         pendingInvites,
         salesCloudUsers: salesCloudCount,
@@ -125,29 +98,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
-    let isMongoConnected = false;
-    try {
-      await connectToMongoDB();
-      isMongoConnected = true;
-    } catch (e) {
-      console.warn('MongoDB not connected for POST, using mock store');
-    }
-
     const tenantId = session.tenantId || 'PENTA001';
-    let license = null;
-
-    if (isMongoConnected) {
-      // 1. Validate License in MongoDB
-      license = await TenantLicenseModel.findOne({ tenantId });
-      if (license && license.currentUsage >= license.userLimit) {
-        return NextResponse.json({ success: false, error: 'User limit reached. Please upgrade your plan.' }, { status: 403 });
-      }
-    }
-
     const newUserId = `usr_${uuidv4()}`;
     const wsArray = Array.isArray(workspaces) ? workspaces : ['SFMC'];
 
-    // For login verification in fallback/mock DBs
+    // For login verification — store bcrypt hash in SF Password__c field
     const passwordHash = password ? await hashPassword(password) : undefined;
     
     const newUserObj = {
@@ -155,46 +110,36 @@ export async function POST(request: NextRequest) {
       fullName,
       email: email.toLowerCase(),
       role,
-      passwordHash,
-      password, // Pass plain text so connector can sync it to Salesforce as requested
+      password: passwordHash || password, // Store the hash (or plain text fallback) in SF
       status: 'ACTIVE',
       workspacePermissions: wsArray.map((w: string) => ({ workspaceType: w }))
     };
 
-    // 2. Create User in Salesforce/SFMC
-    if (wsArray.includes('SALES_CLOUD')) {
-      const scConnector = new SalesCloudConnector();
-      await scConnector.createWorkspaceUser(tenantId, newUserObj);
-    }
-    
-    if (wsArray.includes('SFMC')) {
-      const sfmcConnector = new SFMCConnector();
-      await sfmcConnector.createWorkspaceUser(tenantId, newUserObj);
-    }
+    // Create User in Salesforce WhatZupp_User__c
+    const scConnector = new SalesCloudConnector();
+    await scConnector.createWorkspaceUser(tenantId, newUserObj);
 
-    // Update Mock Store as backup
-    addMockUser({
-      ...newUserObj,
-      tenantId: session.tenantId,
-      tenantName: session.tenantName,
-      tenantCode: session.tenantCode,
-    });
-
-    // 3. Update Usage Counter & Audit in MongoDB
-    if (isMongoConnected) {
+    // Update Usage Counter & Audit in MongoDB (optional, non-blocking)
+    try {
+      await connectToMongoDB();
+      const license = await TenantLicenseModel.findOne({ tenantId });
       if (license) {
         license.currentUsage += 1;
         await license.save();
       }
-
       await AuditLogModel.create({
         tenantId,
         action: 'USER_CREATED',
         performedBy: session.userId,
       });
+    } catch {
+      // MongoDB not available — skip audit logging
     }
 
-    return NextResponse.json({ success: true, message: 'User created successfully', user: newUserObj });
+    // Don't return password data to client
+    const { password: _, passwordHash: __, ...safeUser } = newUserObj as any;
+
+    return NextResponse.json({ success: true, message: 'User created successfully', user: safeUser });
   } catch (error: any) {
     console.error('POST /tenant/users error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

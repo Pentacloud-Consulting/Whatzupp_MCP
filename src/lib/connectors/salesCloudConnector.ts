@@ -1345,68 +1345,110 @@ export class SalesCloudConnector implements Connector {
   }
 
   async fetchWorkspaceUsers(tenantId: string): Promise<any[]> {
-    try {
-      let { access_token, instance_url } = await getSalesCloudAccessToken();
-      if (access_token.startsWith('mock-')) {
-        throw new Error('Mock token');
-      }
+    const { access_token, instance_url } = await getSalesCloudAccessToken();
 
-      const q = `SELECT Id, User_Id__c, Name__c, Email__c, Role__c, Status__c FROM WhatZupp_User__c WHERE Tenant_Id__c = '${tenantId}'`;
-      const res = await fetch(`${instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
-        headers: { 'Authorization': `Bearer ${access_token}` }
+    const q = `SELECT Id, User_Id__c, Name__c, Email__c, Role__c, Status__c, Workspace__c FROM WhatZupp_User__c WHERE Tenant_Id__c = '${tenantId}'`;
+    let res = await fetch(`${instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
+      headers: { 'Authorization': `Bearer ${access_token}` },
+      cache: 'no-store'
+    });
+
+    if (res.status === 401) {
+      const fresh = await getSalesCloudAccessToken(true);
+      res = await fetch(`${fresh.instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
+        headers: { 'Authorization': `Bearer ${fresh.access_token}` },
+        cache: 'no-store'
       });
-      if (!res.ok) throw new Error('Failed to fetch from WhatZupp_User__c');
-      const data = await res.json();
-      return (data.records || []).map((r: any) => ({
+    }
+
+    if (!res.ok) {
+      console.error('[SalesCloudConnector] fetchWorkspaceUsers failed:', await res.text().catch(() => ''));
+      return [];
+    }
+
+    const data = await res.json();
+    return (data.records || []).map((r: any) => {
+      const wsField = r.Workspace__c || 'SALES_CLOUD';
+      const workspaces = wsField.split(';').map((w: string) => ({ workspaceType: w.trim() }));
+      return {
         id: r.User_Id__c || r.Id,
         fullName: r.Name__c,
         email: r.Email__c,
         role: r.Role__c,
         status: r.Status__c || 'ACTIVE',
-        workspacePermissions: [{ workspaceType: 'SALES_CLOUD' }]
-      }));
-    } catch (err) {
-      console.warn('[SalesCloudConnector] fetchWorkspaceUsers fallback to mock');
-      const { getMockUsers } = require('../storage/mockUsersStore');
-      return getMockUsers().filter((u: any) => 
-        (u.tenantId === tenantId || !u.tenantId) && 
-        u.workspacePermissions?.some((w: any) => w.workspaceType === 'SALES_CLOUD')
-      );
+        workspacePermissions: workspaces
+      };
+    });
+  }
+
+  /**
+   * Find a user by email in WhatZupp_User__c for login authentication.
+   * Returns the user record including Password__c for verification.
+   */
+  async findUserByEmail(email: string): Promise<any | null> {
+    const { access_token, instance_url } = await getSalesCloudAccessToken();
+    const safeEmail = email.replace(/'/g, "\\'");
+
+    const q = `SELECT Id, User_Id__c, Name__c, Email__c, Password__c, Role__c, Status__c, Tenant_Id__c, Workspace__c FROM WhatZupp_User__c WHERE Email__c = '${safeEmail}' LIMIT 1`;
+    let res = await fetch(`${instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
+      headers: { 'Authorization': `Bearer ${access_token}` },
+      cache: 'no-store'
+    });
+
+    if (res.status === 401) {
+      const fresh = await getSalesCloudAccessToken(true);
+      res = await fetch(`${fresh.instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
+        headers: { 'Authorization': `Bearer ${fresh.access_token}` },
+        cache: 'no-store'
+      });
     }
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    const records = data.records || [];
+    if (records.length === 0) return null;
+
+    const r = records[0];
+    const wsField = r.Workspace__c || 'SALES_CLOUD';
+    return {
+      id: r.User_Id__c || r.Id,
+      fullName: r.Name__c,
+      email: r.Email__c,
+      password: r.Password__c || '',
+      role: r.Role__c,
+      status: r.Status__c || 'ACTIVE',
+      tenantId: r.Tenant_Id__c,
+      workspacePermissions: wsField.split(';').map((w: string) => ({ workspaceType: w.trim() }))
+    };
   }
 
   async createWorkspaceUser(tenantId: string, user: any): Promise<any> {
-    try {
-      let { access_token, instance_url } = await getSalesCloudAccessToken();
-      if (access_token.startsWith('mock-')) {
-        throw new Error('Mock token');
-      }
-      
-      const res = await fetch(`${instance_url}/services/data/v60.0/sobjects/WhatZupp_User__c`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          User_Id__c: user.id,
-          Tenant_Id__c: tenantId,
-          Workspace__c: user.workspacePermissions?.map((w: any) => w.workspaceType).join(';') || 'SALES_CLOUD',
-          Name__c: user.fullName,
-          Email__c: user.email,
-          Password__c: user.password || '',
-          Role__c: user.role,
-          Status__c: user.status || 'ACTIVE'
-        })
-      });
-      if (!res.ok) throw new Error('Failed to create in WhatZupp_User__c');
-      return user;
-    } catch (err) {
-      console.warn('[SalesCloudConnector] createWorkspaceUser fallback to mock');
-      const { addMockUser } = require('../storage/mockUsersStore');
-      addMockUser(user);
-      return user;
+    const { access_token, instance_url } = await getSalesCloudAccessToken();
+    
+    const res = await fetch(`${instance_url}/services/data/v60.0/sobjects/WhatZupp_User__c`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${access_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        User_Id__c: user.id,
+        Tenant_Id__c: tenantId,
+        Workspace__c: user.workspacePermissions?.map((w: any) => w.workspaceType).join(';') || 'SALES_CLOUD',
+        Name__c: user.fullName,
+        Email__c: user.email,
+        Password__c: user.password || '',
+        Role__c: user.role,
+        Status__c: user.status || 'ACTIVE'
+      })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error('[SalesCloudConnector] createWorkspaceUser failed:', errText);
+      throw new Error(`Failed to create user in Salesforce: ${errText}`);
     }
+    return user;
   }
 
   async deleteContact(id: string): Promise<boolean> {

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyPassword, createSessionToken, setSessionCookie, SessionPayload } from '@/lib/auth';
 import { prisma, hasDatabaseUrl } from '@/lib/db';
 import { getLocalSignupRequests } from '@/lib/storage/signupStore';
-import { getMockUsers } from '@/lib/storage/mockUsersStore';
+import { SalesCloudConnector } from '@/lib/connectors/salesCloudConnector';
 
 export async function POST(request: NextRequest) {
   try {
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2. Check local signup requests store
+    // 2. Check local signup requests store (for tenant admin approval flow)
     const localRequests = getLocalSignupRequests();
     const localReq = localRequests.find(r => r.email.toLowerCase() === cleanEmail);
 
@@ -149,43 +149,65 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2.5 Check shared in-memory mock users store (for mock users created in local test env)
-    const mockUsers = getMockUsers();
-    const mockUser = mockUsers.find((u: any) => u.email.toLowerCase() === cleanEmail);
-    
-    if (mockUser) {
-      if (mockUser.passwordHash) {
-        const isPasswordValid = await verifyPassword(password, mockUser.passwordHash);
+    // 3. Check Salesforce WhatZupp_User__c (all tenant users are stored here)
+    try {
+      const scConnector = new SalesCloudConnector();
+      const sfUser = await scConnector.findUserByEmail(cleanEmail);
+
+      if (sfUser) {
+        if (sfUser.status === 'SUSPENDED' || sfUser.status === 'DISABLED') {
+          return NextResponse.json(
+            { success: false, error: 'Your account has been suspended or disabled by administrator.' },
+            { status: 403 }
+          );
+        }
+
+        // Verify password — compare plain text (stored in Password__c) or bcrypt hash
+        let isPasswordValid = false;
+        if (sfUser.password) {
+          if (sfUser.password.startsWith('$2')) {
+            // bcrypt hash stored in SF
+            isPasswordValid = await verifyPassword(password, sfUser.password);
+          } else {
+            // Plain text comparison
+            isPasswordValid = password === sfUser.password;
+          }
+        }
+
         if (!isPasswordValid) {
           return NextResponse.json(
             { success: false, error: 'Invalid email or password' },
             { status: 401 }
           );
         }
+
+        // Determine tenant name from tenantId
+        const tenantCode = sfUser.tenantId || '';
+        const sessionPayload: SessionPayload = {
+          userId: sfUser.id,
+          email: sfUser.email,
+          fullName: sfUser.fullName,
+          tenantId: sfUser.tenantId,
+          tenantCode: tenantCode,
+          tenantName: tenantCode, // Will be resolved from the tenant record on the client side
+          role: sfUser.role as any,
+          workspacePermissions: sfUser.workspacePermissions.map((wp: any) => wp.workspaceType),
+        };
+
+        const token = await createSessionToken(sessionPayload);
+        await setSessionCookie(token);
+
+        return NextResponse.json({
+          success: true,
+          message: 'Login successful',
+          user: sessionPayload,
+        });
       }
-
-      const sessionPayload: SessionPayload = {
-        userId: mockUser.id,
-        email: mockUser.email,
-        fullName: mockUser.fullName,
-        tenantId: mockUser.tenantId || 't-mock-tenant',
-        tenantCode: mockUser.tenantCode || 'MOCK_TENANT',
-        tenantName: mockUser.tenantName || 'Enterprise Tenant',
-        role: mockUser.role,
-        workspacePermissions: mockUser.workspacePermissions.map((wp: any) => wp.workspaceType),
-      };
-
-      const token = await createSessionToken(sessionPayload);
-      await setSessionCookie(token);
-
-      return NextResponse.json({
-        success: true,
-        message: 'Login successful',
-        user: sessionPayload,
-      });
+    } catch (sfErr) {
+      console.warn('[Login] Salesforce user lookup failed:', sfErr);
     }
 
-    // 3. Fallback Admin Credentials
+    // 4. Fallback Admin Credentials
     if (
       cleanEmail === 'admin@whatzupp.com' ||
       cleanEmail === 'waseem@whatzupp.com' ||

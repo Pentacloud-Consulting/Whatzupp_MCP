@@ -127,7 +127,8 @@ export class SFMCConnector implements Connector {
       const { access_token } = await getSfmcAccessToken();
       const rest_instance_url = process.env.SFMC_REST_BASE_URI || '';
       if (access_token.startsWith('mock-')) {
-        throw new Error('Mock token');
+        // No SFMC credentials — return empty (users are in Salesforce WhatZupp_User__c)
+        return [];
       }
 
       const res = await fetch(`${rest_instance_url}/data/v1/customobjectdata/key/WhatZupp_Workspace_Users/rowset?$filter=TenantId%20eq%20'${tenantId}'`, {
@@ -146,12 +147,8 @@ export class SFMCConnector implements Connector {
         workspacePermissions: [{ workspaceType: 'SFMC' }]
       }));
     } catch (e) {
-      console.warn('[SFMCConnector] fetchWorkspaceUsers fallback to mock');
-      const { getMockUsers } = require('../storage/mockUsersStore');
-      return getMockUsers().filter((u: any) => 
-        (u.tenantId === tenantId || !u.tenantId) && 
-        u.workspacePermissions?.some((w: any) => w.workspaceType === 'SFMC')
-      );
+      console.warn('[SFMCConnector] fetchWorkspaceUsers failed:', e);
+      return [];
     }
   }
 
@@ -160,7 +157,8 @@ export class SFMCConnector implements Connector {
       const { access_token } = await getSfmcAccessToken();
       const rest_instance_url = process.env.SFMC_REST_BASE_URI || '';
       if (access_token.startsWith('mock-')) {
-        throw new Error('Mock token');
+        // No SFMC credentials — user is already created in Salesforce WhatZupp_User__c
+        return user;
       }
 
       const payload = {
@@ -183,9 +181,7 @@ export class SFMCConnector implements Connector {
       if (!res.ok) throw new Error('SFMC createWorkspaceUser failed');
       return user;
     } catch (e) {
-      console.warn('[SFMCConnector] createWorkspaceUser fallback to mock');
-      const { addMockUser } = require('../storage/mockUsersStore');
-      addMockUser(user);
+      console.warn('[SFMCConnector] createWorkspaceUser failed (user exists in SF):', e);
       return user;
     }
   }
