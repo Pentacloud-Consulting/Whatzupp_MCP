@@ -396,6 +396,7 @@ function NewCoverageWizard({ onClose, onSubmit, users, wsId, wsKey }: {
       setIsLoadingContacts(true);
       fetch(`/api/workspaces/${wsId}/contacts`, {
         headers: { 'X-Workspace-Key': wsKey },
+        cache: 'no-store'
       })
       .then(res => res.json())
       .then(data => {
@@ -405,6 +406,7 @@ function NewCoverageWizard({ onClose, onSubmit, users, wsId, wsKey }: {
           
           let owned = data.contacts.filter((c: any) => 
             c.primaryAssigneeId === form.originalOwnerId || 
+            c.originalAssigneeId === form.originalOwnerId ||
             c.ownerUserId === form.originalOwnerId ||
             !c.primaryAssigneeId || c.primaryAssigneeId === 'unassigned' || c.primaryAssigneeId === 'none'
           );

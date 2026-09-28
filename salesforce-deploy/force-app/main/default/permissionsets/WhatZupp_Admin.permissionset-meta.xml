@@ -59,6 +59,87 @@
         <field>WhatZupp_Broadcast__c.Status__c</field>
         <readable>true</readable>
     </fieldPermissions>
+    <!-- Coverage Transfer Fields -->
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Approval_Status__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Coverage_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Created_By__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Effective_Status__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.End_Time__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Is_All_Contacts__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Manager_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Original_Owner_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Primary_Backup_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Reason__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Specific_Contact_Ids__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Start_Time__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Status__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Temporary_Owner_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Tenant_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>WhatZupp_Coverage_Transfer__c.Workspace_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
         <field>WhatZupp_User__c.Email__c</field>
