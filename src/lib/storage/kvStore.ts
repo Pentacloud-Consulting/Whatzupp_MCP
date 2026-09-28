@@ -1,6 +1,6 @@
 // src/lib/storage/kvStore.ts
 // Universal Storage Adapter for non-customer app config & unmatched queue
-// Ephemeral-safe: uses Vercel KV / Redis in production, local JSON fallback in dev
+// Priority: Vercel KV (Redis) → In-memory (serverless) → Local JSON (dev)
 
 import fs from 'fs';
 import path from 'path';
@@ -25,173 +25,166 @@ export interface ConversationOwner {
   assignedBy?: 'outbound' | 'inbound_match' | 'manual_assignment';
 }
 
-function ensureProductionConfigured() {
-  // Log warning if KV not configured in production, but do not crash process
-  if (process.env.NODE_ENV === 'production' && !process.env.KV_REST_API_URL && !process.env.REDIS_URL) {
-    // Graceful warning for serverless memory fallback
-  }
-}
+// ─── In-memory fallback for serverless (when KV + filesystem are unavailable) ───
+const globalForKV = globalThis as unknown as { __kvMemStore: Map<string, string> | undefined };
+const memStore: Map<string, string> = globalForKV.__kvMemStore ?? new Map();
+globalForKV.__kvMemStore = memStore;
+
+const isVercelKVConfigured = () => !!process.env.KV_REST_API_URL;
+const isReadOnlyFS = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
 
 const DATA_DIR = path.resolve(process.cwd(), 'src', 'data');
 
 function ensureDataDirExists() {
+  if (isReadOnlyFS) return; // Skip on read-only FS
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
   } catch {
-    // Ignore read-only filesystem errors in serverless
+    // Ignore
   }
 }
 
-// In-memory cache for dev mode
-let devUnmatchedQueue: UnmatchedMessage[] = [];
-let devConfigStore: Record<string, unknown> = {};
+// ─── Low-level KV helpers ───
 
-export async function getUnmatchedQueue(): Promise<UnmatchedMessage[]> {
-  ensureProductionConfigured();
-
-  if (process.env.KV_REST_API_URL) {
+async function kvGet(key: string): Promise<string | null> {
+  // 1. Vercel KV
+  if (isVercelKVConfigured()) {
     try {
-      const res = await fetch(`${process.env.KV_REST_API_URL}/get/unmatched_queue`, {
+      const res = await fetch(`${process.env.KV_REST_API_URL}/get/${key}`, {
         headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` },
         cache: 'no-store'
       });
       if (res.ok) {
         const data = await res.json();
-        return data.result ? JSON.parse(data.result) : [];
+        return data.result ?? null;
       }
     } catch (err) {
-      console.error('[kvStore] KV read failed:', err);
+      console.error('[kvStore] KV GET failed:', err);
     }
   }
 
-  // Local Dev Fallback
-  ensureDataDirExists();
-  const filePath = path.join(DATA_DIR, 'unmatched_queue.json');
-  if (fs.existsSync(filePath)) {
-    try {
-      const content = fs.readFileSync(filePath, 'utf8');
-      devUnmatchedQueue = JSON.parse(content);
-    } catch {
-      devUnmatchedQueue = [];
+  // 2. In-memory (always available)
+  const memVal = memStore.get(key);
+  if (memVal !== undefined) return memVal;
+
+  // 3. Local filesystem (dev only)
+  if (!isReadOnlyFS) {
+    ensureDataDirExists();
+    const filePath = path.join(DATA_DIR, 'app_config.json');
+    if (fs.existsSync(filePath)) {
+      try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        const store = JSON.parse(content);
+        return store[key] !== undefined ? JSON.stringify(store[key]) : null;
+      } catch {
+        return null;
+      }
     }
   }
-  return devUnmatchedQueue;
+
+  return null;
+}
+
+async function kvSet(key: string, value: string): Promise<void> {
+  // 1. Vercel KV
+  if (isVercelKVConfigured()) {
+    try {
+      await fetch(`${process.env.KV_REST_API_URL}/set/${key}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` },
+        body: JSON.stringify(value),
+      });
+      // Also update in-memory cache
+      memStore.set(key, value);
+      return;
+    } catch (err) {
+      console.error('[kvStore] KV SET failed:', err);
+    }
+  }
+
+  // 2. In-memory (always works)
+  memStore.set(key, value);
+
+  // 3. Local filesystem (dev only)
+  if (!isReadOnlyFS) {
+    try {
+      ensureDataDirExists();
+      const filePath = path.join(DATA_DIR, 'app_config.json');
+      let store: Record<string, unknown> = {};
+      if (fs.existsSync(filePath)) {
+        try {
+          store = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        } catch { /* ignore */ }
+      }
+      store[key] = JSON.parse(value);
+      fs.writeFileSync(filePath, JSON.stringify(store, null, 2), 'utf8');
+    } catch {
+      // Ignore filesystem errors
+    }
+  }
+}
+
+// ─── Unmatched Queue ───
+
+let devUnmatchedQueue: UnmatchedMessage[] = [];
+
+export async function getUnmatchedQueue(): Promise<UnmatchedMessage[]> {
+  const raw = await kvGet('unmatched_queue');
+  if (raw) {
+    try { return JSON.parse(raw); } catch { return []; }
+  }
+
+  // Legacy dev fallback
+  if (!isReadOnlyFS) {
+    ensureDataDirExists();
+    const filePath = path.join(DATA_DIR, 'unmatched_queue.json');
+    if (fs.existsSync(filePath)) {
+      try {
+        devUnmatchedQueue = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      } catch { devUnmatchedQueue = []; }
+    }
+    return devUnmatchedQueue;
+  }
+
+  return [];
 }
 
 export async function pushUnmatched(msg: UnmatchedMessage): Promise<void> {
-  ensureProductionConfigured();
-
   const queue = await getUnmatchedQueue();
-  // Idempotent push by id
   const existingIdx = queue.findIndex(item => item.id === msg.id);
   if (existingIdx >= 0) {
     queue[existingIdx] = msg;
   } else {
     queue.push(msg);
   }
-
-  if (process.env.KV_REST_API_URL) {
-    try {
-      await fetch(`${process.env.KV_REST_API_URL}/set/unmatched_queue`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` },
-        body: JSON.stringify(JSON.stringify(queue)),
-      });
-      return;
-    } catch (err) {
-      console.error('[kvStore] KV write failed:', err);
-    }
-  }
-
-  // Local Dev Fallback
-  ensureDataDirExists();
-  devUnmatchedQueue = queue;
-  const filePath = path.join(DATA_DIR, 'unmatched_queue.json');
-  fs.writeFileSync(filePath, JSON.stringify(queue, null, 2), 'utf8');
+  await kvSet('unmatched_queue', JSON.stringify(queue));
 }
 
 export async function removeUnmatched(id: string): Promise<boolean> {
-  ensureProductionConfigured();
-
   const queue = await getUnmatchedQueue();
   const filtered = queue.filter(item => item.id !== id);
   const wasRemoved = filtered.length < queue.length;
-
-  if (process.env.KV_REST_API_URL) {
-    try {
-      await fetch(`${process.env.KV_REST_API_URL}/set/unmatched_queue`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` },
-        body: JSON.stringify(JSON.stringify(filtered)),
-      });
-      return wasRemoved;
-    } catch (err) {
-      console.error('[kvStore] KV delete failed:', err);
-    }
-  }
-
-  ensureDataDirExists();
-  devUnmatchedQueue = filtered;
-  const filePath = path.join(DATA_DIR, 'unmatched_queue.json');
-  fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2), 'utf8');
+  await kvSet('unmatched_queue', JSON.stringify(filtered));
   return wasRemoved;
 }
 
+// ─── Config Store ───
+
 export async function getConfig(key: string): Promise<unknown> {
-  ensureProductionConfigured();
-
-  if (process.env.KV_REST_API_URL) {
-    try {
-      const res = await fetch(`${process.env.KV_REST_API_URL}/get/cfg_${key}`, {
-        headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` },
-        cache: 'no-store'
-      });
-      if (res.ok) {
-        const data = await res.json();
-        return data.result ? JSON.parse(data.result) : null;
-      }
-    } catch (err) {
-      console.error('[kvStore] KV getConfig failed:', err);
-    }
-  }
-
-  ensureDataDirExists();
-  const filePath = path.join(DATA_DIR, 'app_config.json');
-  if (fs.existsSync(filePath)) {
-    try {
-      const content = fs.readFileSync(filePath, 'utf8');
-      devConfigStore = JSON.parse(content);
-      return devConfigStore[key] ?? null;
-    } catch {
-      return null;
-    }
+  const raw = await kvGet(`cfg_${key}`);
+  if (raw) {
+    try { return JSON.parse(raw); } catch { return raw; }
   }
   return null;
 }
 
 export async function setConfig(key: string, value: unknown): Promise<void> {
-  ensureProductionConfigured();
-
-  if (process.env.KV_REST_API_URL) {
-    try {
-      await fetch(`${process.env.KV_REST_API_URL}/set/cfg_${key}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` },
-        body: JSON.stringify(JSON.stringify(value)),
-      });
-      return;
-    } catch (err) {
-      console.error('[kvStore] KV setConfig failed:', err);
-    }
-  }
-
-  ensureDataDirExists();
-  devConfigStore[key] = value;
-  const filePath = path.join(DATA_DIR, 'app_config.json');
-  fs.writeFileSync(filePath, JSON.stringify(devConfigStore, null, 2), 'utf8');
+  await kvSet(`cfg_${key}`, JSON.stringify(value));
 }
+
+// ─── Conversation Owner ───
 
 export async function getConversationOwner(phone: string): Promise<ConversationOwner | null> {
   const norm = normalizePhoneNumber(phone);
