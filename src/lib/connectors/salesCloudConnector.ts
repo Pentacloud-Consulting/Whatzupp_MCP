@@ -371,7 +371,6 @@ export class SalesCloudConnector implements Connector {
       }
 
       const payload = {
-        Coverage_Id__c: coverage.id,
         Tenant_Id__c: coverage.tenantId,
         Workspace_Id__c: coverage.workspaceId,
         Original_Owner_Id__c: coverage.originalOwnerId,
