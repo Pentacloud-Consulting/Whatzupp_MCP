@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
         dbTenants = await prisma.tenant.findMany({
           include: {
             users: { select: { id: true } },
-            workspaces: true,
+            tenantWorkspaces: true,
           }
         });
       } catch (err: any) {
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       status: t.status.toLowerCase(),
       plan: t.plan,
       createdAt: t.createdAt,
-      tenantWorkspaces: t.workspaces?.map((w: any) => ({ workspaceType: w.workspaceType })) || [],
+      tenantWorkspaces: t.tenantWorkspaces?.map((w: any) => ({ workspaceType: w.workspaceType })) || [],
       userUsage: t.users?.length || 0,
       userLimit: t.userLimit,
       users: []
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
               status: 'ACTIVE',
               plan: 'ENTERPRISE',
               userLimit: 50,
-              workspaces: {
+              tenantWorkspaces: {
                 create: [
                   { workspaceType: 'SFMC' },
                   { workspaceType: 'SALES_CLOUD' }
