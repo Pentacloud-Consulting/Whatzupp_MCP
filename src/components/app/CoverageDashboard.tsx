@@ -444,8 +444,15 @@ function NewCoverageWizard({ onClose, onSubmit, users, wsId, wsKey }: {
   };
 
   const handleSubmit = () => {
+    // datetime-local gives "2026-09-29T12:42" (local time, no timezone)
+    // Convert to proper ISO strings so the server stores them correctly
+    const startISO = form.startTime ? new Date(form.startTime).toISOString() : form.startTime;
+    const endISO = form.endTime ? new Date(form.endTime).toISOString() : form.endTime;
+    
     onSubmit({
       ...form,
+      startTime: startISO,
+      endTime: endISO,
       priority: form.coverageType === 'EMERGENCY' ? 'HIGH' : form.priority,
     });
   };
