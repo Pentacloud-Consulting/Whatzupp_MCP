@@ -143,11 +143,11 @@ export default function UsersView() {
     setIsInviteModalOpen(true);
   };
 
-  const handleDeleteUser = async (userId: string) => {
+  const handleDeleteUser = async (userId: string, email: string) => {
     if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
     
     try {
-      const res = await fetch(`/api/tenant/users?userId=${userId}`, {
+      const res = await fetch(`/api/tenant/users?userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}`, {
         method: 'DELETE',
       });
       const data = await res.json();
@@ -291,7 +291,7 @@ export default function UsersView() {
                             <Edit2 size={16} />
                           </button>
                           <button 
-                            onClick={() => handleDeleteUser(u.id)}
+                            onClick={() => handleDeleteUser(u.id, u.email)}
                             className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-500 transition-colors" 
                             title="Delete User"
                           >

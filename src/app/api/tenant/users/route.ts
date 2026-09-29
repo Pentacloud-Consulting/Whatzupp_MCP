@@ -188,13 +188,25 @@ export async function DELETE(request: NextRequest) {
 
     const url = new URL(request.url);
     const userId = url.searchParams.get('userId');
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'Missing userId' }, { status: 400 });
+    const email = url.searchParams.get('email');
+    
+    if (!userId && !email) {
+      return NextResponse.json({ success: false, error: 'Missing userId or email' }, { status: 400 });
     }
 
     const tenantId = session.tenantId || 'PENTA001';
+    console.log('[DELETE /tenant/users] tenantId:', tenantId, 'userId:', userId, 'email:', email);
+    
     const scConnector = new SalesCloudConnector();
-    await scConnector.deleteWorkspaceUser(tenantId, userId);
+    
+    if (userId) {
+      await scConnector.deleteWorkspaceUser(tenantId, userId);
+    }
+    
+    // Also delete by email if provided (handles edge cases where userId doesn't match)
+    if (email) {
+      await scConnector.deleteWorkspaceUserByEmail(tenantId, email);
+    }
 
     return NextResponse.json({ success: true, message: 'User deleted successfully' });
   } catch (error: any) {

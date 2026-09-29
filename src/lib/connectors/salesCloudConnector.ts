@@ -1519,22 +1519,86 @@ export class SalesCloudConnector implements Connector {
     const { access_token, instance_url } = await getSalesCloudAccessToken();
     const safeUserId = userId.replace(/'/g, "\\'");
 
-    const q = `SELECT Id FROM WhatZupp_User__c WHERE Tenant_Id__c = '${tenantId}' AND (User_Id__c = '${safeUserId}' OR Id = '${safeUserId}') LIMIT 1`;
+    // Find ALL matching records (not LIMIT 1) — there may be duplicates
+    const q = `SELECT Id, User_Id__c, Email__c FROM WhatZupp_User__c WHERE Tenant_Id__c = '${tenantId}' AND (User_Id__c = '${safeUserId}' OR Id = '${safeUserId}')`;
+    console.log('[deleteWorkspaceUser] SOQL:', q);
+
     let res = await fetch(`${instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
       headers: { 'Authorization': `Bearer ${access_token}` },
     });
-    const data = await res.json();
-    if (!data.records || data.records.length === 0) return true; // Already deleted/doesn't exist
 
-    const sfId = data.records[0].Id;
-    const delRes = await fetch(`${instance_url}/services/data/v60.0/sobjects/WhatZupp_User__c/${sfId}`, {
-      method: 'DELETE',
+    // Handle token refresh
+    if (res.status === 401) {
+      const fresh = await getSalesCloudAccessToken(true);
+      res = await fetch(`${fresh.instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
+        headers: { 'Authorization': `Bearer ${fresh.access_token}` },
+      });
+    }
+
+    const data = await res.json();
+    console.log('[deleteWorkspaceUser] Query result:', JSON.stringify(data));
+
+    if (!data.records || data.records.length === 0) {
+      console.log('[deleteWorkspaceUser] No records found for userId:', userId);
+      return true; // Already deleted/doesn't exist
+    }
+
+    // Delete ALL matching records
+    const errors: string[] = [];
+    const freshToken = (await getSalesCloudAccessToken()).access_token;
+    
+    for (const record of data.records) {
+      const sfId = record.Id;
+      console.log('[deleteWorkspaceUser] Deleting SF record:', sfId, 'Email:', record.Email__c);
+      
+      const delRes = await fetch(`${instance_url}/services/data/v60.0/sobjects/WhatZupp_User__c/${sfId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${freshToken}` },
+      });
+
+      if (!delRes.ok && delRes.status !== 404 && delRes.status !== 204) {
+        const errText = await delRes.text().catch(() => '');
+        console.error('[deleteWorkspaceUser] Failed to delete', sfId, ':', delRes.status, errText);
+        errors.push(`${sfId}: ${errText}`);
+      } else {
+        console.log('[deleteWorkspaceUser] Successfully deleted', sfId);
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(`Salesforce delete failed for some records: ${errors.join('; ')}`);
+    }
+    return true;
+  }
+
+  async deleteWorkspaceUserByEmail(tenantId: string, email: string): Promise<boolean> {
+    const { access_token, instance_url } = await getSalesCloudAccessToken();
+    const safeEmail = email.replace(/'/g, "\\'");
+
+    const q = `SELECT Id FROM WhatZupp_User__c WHERE Tenant_Id__c = '${tenantId}' AND Email__c = '${safeEmail}'`;
+    console.log('[deleteWorkspaceUserByEmail] SOQL:', q);
+
+    let res = await fetch(`${instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
       headers: { 'Authorization': `Bearer ${access_token}` },
     });
-    
-    if (!delRes.ok && delRes.status !== 404) {
-      const errText = await delRes.text().catch(() => '');
-      throw new Error(`Salesforce delete failed: ${errText}`);
+
+    if (res.status === 401) {
+      const fresh = await getSalesCloudAccessToken(true);
+      res = await fetch(`${fresh.instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
+        headers: { 'Authorization': `Bearer ${fresh.access_token}` },
+      });
+    }
+
+    const data = await res.json();
+    if (!data.records || data.records.length === 0) return true;
+
+    const freshToken = (await getSalesCloudAccessToken()).access_token;
+    for (const record of data.records) {
+      console.log('[deleteWorkspaceUserByEmail] Deleting SF record:', record.Id);
+      await fetch(`${instance_url}/services/data/v60.0/sobjects/WhatZupp_User__c/${record.Id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${freshToken}` },
+      });
     }
     return true;
   }
