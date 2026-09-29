@@ -22,17 +22,39 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const res = await fetch('/api/admin/approvals');
-        if (res.ok) {
-          const data = await res.json();
+        const [approvalsRes, tenantsRes] = await Promise.all([
+          fetch('/api/admin/approvals'),
+          fetch('/api/admin/tenants')
+        ]);
+        
+        let pendingCount = 0;
+        if (approvalsRes.ok) {
+          const data = await approvalsRes.json();
           if (data.success && Array.isArray(data.requests)) {
             const pending = data.requests.filter((r: any) => r.status === 'PENDING');
             setPendingRequests(pending);
-            setMetrics(prev => ({ ...prev, pendingApprovals: pending.length }));
+            pendingCount = pending.length;
           }
         }
-      } catch {
-        // use initial fallback state
+        
+        let tenantsCount = 0;
+        let usersCount = 0;
+        if (tenantsRes.ok) {
+          const tData = await tenantsRes.json();
+          if (tData.success && Array.isArray(tData.tenants)) {
+            tenantsCount = tData.tenants.length;
+            usersCount = tData.tenants.reduce((acc: number, t: any) => acc + (t.userUsage || 0), 0);
+          }
+        }
+
+        setMetrics({
+          totalTenants: tenantsCount,
+          pendingApprovals: pendingCount,
+          totalUsers: usersCount,
+          activeProducts: 2, // SFMC & Sales Cloud
+        });
+      } catch (e) {
+        console.error('Failed to load dashboard data', e);
       } finally {
         setIsLoading(false);
       }

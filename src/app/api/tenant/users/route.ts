@@ -1,7 +1,7 @@
 // src/app/api/tenant/users/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest, hashPassword } from '@/lib/auth';
-import { connectToMongoDB, TenantModel, TenantLicenseModel, AuditLogModel } from '@/lib/db/mongodb';
+import { prisma, hasDatabaseUrl } from '@/lib/db';
 import { SalesCloudConnector } from '@/lib/connectors/salesCloudConnector';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -48,18 +48,18 @@ export async function GET(request: NextRequest) {
       if (u.workspacePermissions?.some((wp: any) => wp.workspaceType === 'SFMC')) sfmcCount++;
     });
 
-    // Try to get tenant plan/license info from MongoDB (optional, non-blocking)
     let plan = 'ENTERPRISE';
     let userLimit = 10;
-    try {
-      await connectToMongoDB();
-      const tenant = await TenantModel.findOne({ tenantId });
-      const license = await TenantLicenseModel.findOne({ tenantId });
-      if (tenant) plan = tenant.plan || 'ENTERPRISE';
-      if (license) userLimit = license.userLimit || tenant?.maxUsers || 50;
-      else if (tenant) userLimit = tenant.maxUsers || 50;
-    } catch {
-      // MongoDB not available — use defaults
+    if (hasDatabaseUrl()) {
+      try {
+        const tenant = await prisma.tenant.findFirst({ where: { tenantCode: tenantId } });
+        if (tenant) {
+          plan = tenant.plan || 'ENTERPRISE';
+          userLimit = tenant.userLimit || 50;
+        }
+      } catch {
+        // use defaults
+      }
     }
 
     return NextResponse.json({
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantId = session.tenantId || 'PENTA001';
-    const newUserId = `usr_${uuidv4()}`;
+    const newUserId = \`usr_\${uuidv4()}\`;
     const wsArray = Array.isArray(workspaces) ? workspaces : ['SFMC'];
 
     // For login verification — store bcrypt hash in SF Password__c field
@@ -119,21 +119,22 @@ export async function POST(request: NextRequest) {
     const scConnector = new SalesCloudConnector();
     await scConnector.createWorkspaceUser(tenantId, newUserObj);
 
-    // Update Usage Counter & Audit in MongoDB (optional, non-blocking)
-    try {
-      await connectToMongoDB();
-      const license = await TenantLicenseModel.findOne({ tenantId });
-      if (license) {
-        license.currentUsage += 1;
-        await license.save();
+    if (hasDatabaseUrl()) {
+      try {
+        const t = await prisma.tenant.findFirst({ where: { tenantCode: tenantId } });
+        if (t) {
+          await prisma.auditLog.create({
+            data: {
+              tenantId: t.id,
+              action: 'USER_CREATED',
+              performedBy: session.userId && session.userId.length === 36 ? session.userId : null,
+              details: { newUserId, email }
+            }
+          });
+        }
+      } catch {
+        // skip audit logging
       }
-      await AuditLogModel.create({
-        tenantId,
-        action: 'USER_CREATED',
-        performedBy: session.userId,
-      });
-    } catch {
-      // MongoDB not available — skip audit logging
     }
 
     // Don't return password data to client
@@ -147,11 +148,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  // Simplified PUT for now
   return NextResponse.json({ success: true, message: 'User updated successfully' });
 }
 
 export async function DELETE(request: NextRequest) {
-  // Simplified DELETE for now
   return NextResponse.json({ success: true, message: 'User deleted successfully' });
 }
