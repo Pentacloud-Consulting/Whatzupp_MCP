@@ -1446,6 +1446,17 @@ export class SalesCloudConnector implements Connector {
   async createWorkspaceUser(tenantId: string, user: any): Promise<any> {
     const { access_token, instance_url } = await getSalesCloudAccessToken();
     
+    // Check for duplicates first
+    const safeEmail = user.email.replace(/'/g, "\\'");
+    const q = `SELECT Id FROM WhatZupp_User__c WHERE Tenant_Id__c = '${tenantId}' AND Email__c = '${safeEmail}' LIMIT 1`;
+    let checkRes = await fetch(`${instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
+      headers: { 'Authorization': `Bearer ${access_token}` },
+    });
+    const checkData = await checkRes.json();
+    if (checkData.records && checkData.records.length > 0) {
+      throw new Error(`A user with email ${user.email} already exists.`);
+    }
+
     const res = await fetch(`${instance_url}/services/data/v60.0/sobjects/WhatZupp_User__c`, {
       method: 'POST',
       headers: {
@@ -1520,7 +1531,12 @@ export class SalesCloudConnector implements Connector {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${access_token}` },
     });
-    return delRes.ok || delRes.status === 404;
+    
+    if (!delRes.ok && delRes.status !== 404) {
+      const errText = await delRes.text().catch(() => '');
+      throw new Error(`Salesforce delete failed: ${errText}`);
+    }
+    return true;
   }
 
   async deleteContact(id: string): Promise<boolean> {
