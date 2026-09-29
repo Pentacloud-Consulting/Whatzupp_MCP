@@ -439,6 +439,41 @@ export async function POST(request: Request) {
                       }
                     }
 
+                    // Vercel Serverless Fallback: If instance is lost (cold start) but we got an interactive response, try to recover!
+                    if (!instance && message.type === 'interactive') {
+                      const flows = Array.from(flowStore.values()).filter((f: any) => f.status === 'active') as any[];
+                      for (const f of flows) {
+                        for (const n of f.nodes) {
+                          if (n.type === 'QUESTION_BUTTONS' || n.type === 'QUESTION_QUICK_REPLY') {
+                            const btn = n.data.buttons?.find((b: any) => b.label.toLowerCase() === contentText.toLowerCase());
+                            if (btn) {
+                               targetFlow = f;
+                               instance = createFlowInstance(f, normalizedPhone, n.id);
+                               activeFlowInstances.set(normalizedPhone, instance);
+                               console.log(`[webhook] Recovered lost flow instance from interactive response '${contentText}' at node ${n.id}`);
+                               break;
+                            }
+                          }
+                          if (n.type === 'QUESTION_LIST') {
+                            let listMatch = false;
+                            for (const section of n.data.listSections || []) {
+                              if (section.options?.find((o: any) => o.title.toLowerCase() === contentText.toLowerCase())) {
+                                listMatch = true; break;
+                              }
+                            }
+                            if (listMatch) {
+                               targetFlow = f;
+                               instance = createFlowInstance(f, normalizedPhone, n.id);
+                               activeFlowInstances.set(normalizedPhone, instance);
+                               console.log(`[webhook] Recovered lost flow instance from list response '${contentText}' at node ${n.id}`);
+                               break;
+                            }
+                          }
+                        }
+                        if (instance) break;
+                      }
+                    }
+
                     if (instance && targetFlow) {
                       // If resuming from a question node, record the response and advance the node
                       const startNodeId = targetFlow.nodes.find((n: any) => n.type === 'TRIGGER_KEYWORD')?.id;
