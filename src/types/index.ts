@@ -51,6 +51,7 @@ export interface Contact {
     contactPhoneNumber?: string;
     conversationId?: string;
     originalId?: string;
+    contextMessageId?: string;
   }
 
   // WhatsApp configuration settings
@@ -143,6 +144,7 @@ export interface Contact {
     mimeType?: string;
     filename?: string;
     caption?: string;
+    contextMessageId?: string;
   }
   
   export interface Contact {

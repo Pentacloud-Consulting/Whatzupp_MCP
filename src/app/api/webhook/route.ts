@@ -159,6 +159,7 @@ export async function POST(request: Request) {
                 const msgIsoTimestamp = message.timestamp
                   ? new Date(Number(message.timestamp) * 1000).toISOString()
                   : new Date().toISOString();
+                const contextMessageId = (message.context as Record<string, string>)?.id;
 
                 // Idempotency check for incoming wamid
                 if (!markWamidProcessed(messageId)) {
@@ -289,6 +290,7 @@ export async function POST(request: Request) {
                         sender: 'contact',
                         status: 'DELIVERED',
                         recipientId: routedTo || 'user',
+                        contextMessageId,
                       }, ownerWorkspaceId).catch(e => console.warn('[webhook] Sales Cloud realtime emit failed:', e));
                       handled = true;
                     }
@@ -308,6 +310,7 @@ export async function POST(request: Request) {
                       sender: 'contact',
                       status: 'DELIVERED',
                       recipientId: 'user',
+                      contextMessageId,
                     }, ownerWorkspaceId).catch(e => console.warn('[webhook] SFMC realtime emit failed:', e));
                     handled = true;
                   }

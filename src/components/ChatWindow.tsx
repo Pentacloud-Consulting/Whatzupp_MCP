@@ -628,18 +628,31 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                 const isFirstInGroup = index === 0 || dateMessages[index - 1].sender !== message.sender;
                 const isLastInGroup = index === dateMessages.length - 1 || dateMessages[index + 1]?.sender !== message.sender;
                 const mods = localMods[message.id] || {};
-                const hasQuote = message.content && message.content.startsWith('> Replying to:');
-                const isSfmc = isSent && /^\[Template:\s/.test(message.content || '');
-
                 let rawText = message.content || '';
                 let quoteText = '';
-                if (hasQuote) {
+                let quoteSender = isSent ? 'You' : contact.name;
+                
+                const hasManualQuote = message.content && message.content.startsWith('> Replying to:');
+                if (hasManualQuote) {
                   const parts = rawText.split('\n\n');
                   if (parts.length > 1) {
                     quoteText = parts[0].replace('> Replying to:', '').trim();
                     rawText = parts.slice(1).join('\n\n').trim();
                   }
+                } else if (message.contextMessageId) {
+                  const originalMsg = messages.find(m => m.id === message.contextMessageId || m.originalId === message.contextMessageId || m.id === message.contextMessageId.replace('wamid_', ''));
+                  if (originalMsg) {
+                    quoteText = originalMsg.content || 'Media message';
+                    // Clean up markdown/tags from the quote
+                    quoteText = quoteText.replace(/\[.*?\]/g, '').trim() || quoteText;
+                    quoteSender = originalMsg.sender === 'user' ? 'You' : contact.name;
+                  } else {
+                    quoteText = 'Original message';
+                    quoteSender = 'You';
+                  }
                 }
+                
+                const hasQuote = !!quoteText;
 
                 // Enhanced Media & Image Attachment Detection
                 const isImageAttachment = 
@@ -734,7 +747,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                             {/* Quote */}
                             {hasQuote && quoteText && (
                               <div className={`mt-1 mb-2 rounded-xl p-2.5 border-l-[3px] border-[#00C853] ${isSent ? 'bg-emerald-950/10' : 'bg-emerald-50'}`}>
-                                <p className="text-[11px] font-extrabold mb-0.5 text-[#00C853]">{isSent ? 'You' : contact.name}</p>
+                                <p className="text-[11px] font-extrabold mb-0.5 text-[#00C853]">{quoteSender}</p>
                                 <p className="text-[12px] opacity-90 line-clamp-2 leading-snug font-medium text-slate-700">{quoteText}</p>
                               </div>
                             )}
