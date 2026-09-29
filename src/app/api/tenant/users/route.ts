@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Ensure session user is visible in their own list
-    if (!allUsers.find(u => u.id === session.userId)) {
+    if (!allUsers.find(u => u.id === session.userId || u.email === session.email)) {
       allUsers.unshift({
         id: session.userId || '1',
         fullName: session.fullName,
@@ -148,9 +148,57 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  return NextResponse.json({ success: true, message: 'User updated successfully' });
+  try {
+    const session = await getSessionFromRequest(request);
+    if (!session || session.role !== 'TENANT_ADMIN') {
+      return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { userId, email, password, fullName, role, workspaces, status } = body;
+
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'Missing userId' }, { status: 400 });
+    }
+
+    const tenantId = session.tenantId || 'PENTA001';
+    const updates: any = {};
+    if (fullName) updates.fullName = fullName;
+    if (role) updates.role = role;
+    if (status) updates.status = status;
+    if (password) updates.password = await hashPassword(password);
+    if (workspaces) updates.workspacePermissions = Array.isArray(workspaces) ? workspaces.map(w => ({ workspaceType: w })) : [];
+
+    const scConnector = new SalesCloudConnector();
+    await scConnector.updateWorkspaceUser(tenantId, userId, updates);
+
+    return NextResponse.json({ success: true, message: 'User updated successfully' });
+  } catch (error: any) {
+    console.error('PUT /tenant/users error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
 }
 
 export async function DELETE(request: NextRequest) {
-  return NextResponse.json({ success: true, message: 'User deleted successfully' });
+  try {
+    const session = await getSessionFromRequest(request);
+    if (!session || session.role !== 'TENANT_ADMIN') {
+      return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 403 });
+    }
+
+    const url = new URL(request.url);
+    const userId = url.searchParams.get('userId');
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'Missing userId' }, { status: 400 });
+    }
+
+    const tenantId = session.tenantId || 'PENTA001';
+    const scConnector = new SalesCloudConnector();
+    await scConnector.deleteWorkspaceUser(tenantId, userId);
+
+    return NextResponse.json({ success: true, message: 'User deleted successfully' });
+  } catch (error: any) {
+    console.error('DELETE /tenant/users error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
 }

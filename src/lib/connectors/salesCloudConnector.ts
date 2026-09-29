@@ -1472,6 +1472,57 @@ export class SalesCloudConnector implements Connector {
     return user;
   }
 
+  async updateWorkspaceUser(tenantId: string, userId: string, updates: any): Promise<boolean> {
+    const { access_token, instance_url } = await getSalesCloudAccessToken();
+    const safeUserId = userId.replace(/'/g, "\\'");
+
+    const q = `SELECT Id FROM WhatZupp_User__c WHERE Tenant_Id__c = '${tenantId}' AND (User_Id__c = '${safeUserId}' OR Id = '${safeUserId}') LIMIT 1`;
+    let res = await fetch(`${instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
+      headers: { 'Authorization': `Bearer ${access_token}` },
+    });
+    const data = await res.json();
+    if (!data.records || data.records.length === 0) return false;
+
+    const sfId = data.records[0].Id;
+    const sfUpdates: any = {};
+    if (updates.fullName) sfUpdates.Name__c = updates.fullName;
+    if (updates.role) sfUpdates.Role__c = updates.role;
+    if (updates.status) sfUpdates.Status__c = updates.status;
+    if (updates.password) sfUpdates.Password__c = updates.password;
+    if (updates.workspacePermissions) {
+        sfUpdates.Workspace__c = updates.workspacePermissions.map((w: any) => w.workspaceType).join(';');
+    }
+
+    const patchRes = await fetch(`${instance_url}/services/data/v60.0/sobjects/WhatZupp_User__c/${sfId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${access_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(sfUpdates)
+    });
+    return patchRes.ok;
+  }
+
+  async deleteWorkspaceUser(tenantId: string, userId: string): Promise<boolean> {
+    const { access_token, instance_url } = await getSalesCloudAccessToken();
+    const safeUserId = userId.replace(/'/g, "\\'");
+
+    const q = `SELECT Id FROM WhatZupp_User__c WHERE Tenant_Id__c = '${tenantId}' AND (User_Id__c = '${safeUserId}' OR Id = '${safeUserId}') LIMIT 1`;
+    let res = await fetch(`${instance_url}/services/data/v60.0/query?q=${encodeURIComponent(q)}`, {
+      headers: { 'Authorization': `Bearer ${access_token}` },
+    });
+    const data = await res.json();
+    if (!data.records || data.records.length === 0) return true; // Already deleted/doesn't exist
+
+    const sfId = data.records[0].Id;
+    const delRes = await fetch(`${instance_url}/services/data/v60.0/sobjects/WhatZupp_User__c/${sfId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${access_token}` },
+    });
+    return delRes.ok || delRes.status === 404;
+  }
+
   async deleteContact(id: string): Promise<boolean> {
     const objectType = id.startsWith('003') ? 'Contact' : 'Lead';
     return this.deleteContactOrLead(id, objectType);
