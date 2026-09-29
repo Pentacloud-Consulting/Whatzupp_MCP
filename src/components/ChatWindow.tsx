@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ChevronLeft, MoreVertical, Search, Paperclip, Mic, Phone, Video, X, Info, Reply, Copy, Forward, Pin, Star, Trash2, Smile, Cloud, Zap, Loader2, Check, Download, Tag, Plus, ShieldCheck } from 'lucide-react';
+import { Send, ChevronLeft, MoreVertical, Search, Paperclip, Mic, Phone, Video, X, Info, Reply, Copy, Forward, Pin, Star, Trash2, Smile, Cloud, Zap, Loader2, Check, Download, Tag, Plus, ShieldCheck, List } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 import { Contact, Message, MessageStatus } from '@/types';
 import { useWorkspace } from '@/components/workspace/WorkspaceProvider';
@@ -708,6 +708,34 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                   .replace(/📷|🎥|📄|🎙️/g, '')
                   .trim();
 
+                let interactiveButtons: string[] = [];
+                let isInteractiveList = false;
+
+                const buttonsMatch = rawText.match(/\[InteractiveButtons:(.*?)\]/i);
+                if (buttonsMatch) {
+                  interactiveButtons = buttonsMatch[1].split('|');
+                  cleanDisplayText = cleanDisplayText.replace(/\[InteractiveButtons:.*?\]/i, '').trim();
+                }
+
+                const listMatch = rawText.match(/\[InteractiveList:(.*?)\]/i);
+                if (listMatch) {
+                  interactiveButtons = listMatch[1].split('|');
+                  isInteractiveList = true;
+                  cleanDisplayText = cleanDisplayText.replace(/\[InteractiveList:.*?\]/i, '').trim();
+                }
+
+                // Fallback for older messages
+                if (cleanDisplayText.includes('[Interactive]')) {
+                  cleanDisplayText = cleanDisplayText.replace(/\[Interactive\]/i, '').trim();
+                  if (cleanDisplayText.toLowerCase().includes('learning more')) {
+                    interactiveButtons = ['Yes', 'No'];
+                  } else if (cleanDisplayText.toLowerCase().includes('which service')) {
+                    interactiveButtons = ['Salesforce', 'Zoho', 'Marketing Cloud'];
+                  } else {
+                    interactiveButtons = ['Option 1', 'Option 2'];
+                  }
+                }
+
                 // Extract filename if present
                 const fileNameMatch = rawText.match(/(?:Draft\s*\d+\.[a-z]+|ChatGPT\s*Image[^\.\n]+\.[a-z]+|[a-zA-Z0-9_\-\s]+\.(?:jpeg|jpg|png|webp|gif|pdf|docx|xlsx|csv))/i);
                 const displayFileName = message.filename || (fileNameMatch ? fileNameMatch[0] : 'Media Attachment');
@@ -841,6 +869,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                             </div>
                           </div>
                         </div>
+
+                        {/* Interactive Buttons Rendering */}
+                        {interactiveButtons.length > 0 && (
+                          <div className={`mt-1 flex flex-wrap gap-1.5 ${isSent ? 'justify-end' : 'justify-start'} w-full`}>
+                            {interactiveButtons.map((btn, idx) => (
+                              <div key={idx} className={`flex items-center justify-center bg-[#f0f9eb] border border-[#b2e59e] text-[#047857] text-[13px] font-bold rounded-xl px-4 py-2 shadow-sm min-w-[80px] pointer-events-none`}>
+                                {isInteractiveList ? <List size={14} className="mr-1.5" /> : null}
+                                {btn}
+                              </div>
+                            ))}
+                          </div>
+                        )}
 
                         {/* SFMC Badge */}
                         {isSfmc && (

@@ -493,7 +493,13 @@ export async function POST(request: Request) {
                            console.error('[webhook] Error in sendMsg fetch:', sendErr);
                          }
 
-                         const content = payload.text?.body || (payload.interactive?.body?.text ? payload.interactive.body.text + ' [Interactive]' : '[Flow Message]');
+                         let interactiveSuffix = ' [Interactive]';
+                         if (payload.interactive?.type === 'button' && payload.interactive.action?.buttons) {
+                           interactiveSuffix = ` [InteractiveButtons:${payload.interactive.action.buttons.map((b: any) => b.reply.title).join('|')}]`;
+                         } else if (payload.interactive?.type === 'list' && payload.interactive.action?.sections?.[0]?.rows) {
+                           interactiveSuffix = ` [InteractiveList:${payload.interactive.action.sections[0].rows.map((r: any) => r.title).join('|')}]`;
+                         }
+                         const content = payload.text?.body || (payload.interactive?.body?.text ? payload.interactive.body.text + interactiveSuffix : '[Flow Message]');
                          
                          // Emit to UI
                          emitRealtimeMessage(phone, {
