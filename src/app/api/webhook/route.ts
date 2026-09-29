@@ -111,7 +111,7 @@ export async function POST(request: Request) {
             console.log("[webhook] ===== INBOUND MESSAGE =====");
             console.log("[webhook] Type:", message.type, "| From:", message.from, "| ID:", message.id);
 
-            if (["text", "image", "video", "document", "audio", "sticker"].includes(message.type as string)) {
+            if (["text", "image", "video", "document", "audio", "sticker", "interactive"].includes(message.type as string)) {
               try {
                 let contentText = '';
                 let mediaType: string | undefined = undefined;
@@ -122,6 +122,15 @@ export async function POST(request: Request) {
 
                 if (message.type === "text") {
                   contentText = (message.text as Record<string, string>)?.body || '';
+                } else if (message.type === "interactive") {
+                  const interactive = message.interactive as any;
+                  if (interactive?.type === 'button_reply') {
+                    contentText = interactive.button_reply?.title || '';
+                  } else if (interactive?.type === 'list_reply') {
+                    contentText = interactive.list_reply?.title || '';
+                  } else {
+                    contentText = '[Interactive Response]';
+                  }
                 } else {
                   const actualType = message.type === 'sticker' ? 'sticker' : message.type as string;
                   mediaType = actualType === 'sticker' ? 'image' : actualType;
@@ -397,87 +406,117 @@ export async function POST(request: Request) {
                 }
 
                 // ---- Flow Execution Engine ----
-                if (message.type === 'text' && contentText) {
+                if ((message.type === 'text' || message.type === 'interactive') && contentText) {
                   try {
-                    const { flowStore } = await import('@/lib/conversationFlows/flowStore');
+                    const { flowStore, activeFlowInstances } = await import('@/lib/conversationFlows/flowStore');
                     const { matchKeyword, createFlowInstance, executeFlowNodes } = await import('@/lib/conversationFlows/flowExecutionEngine');
                     
-                    const flows = Array.from(flowStore.values()).filter((f: any) => f.status === 'active') as any[];
-                    const targetFlow = matchKeyword(contentText, flows);
-
-                    if (targetFlow) {
-                      console.log(`[webhook] Flow keyword matched: ${targetFlow.name}`);
-                      const startNode = targetFlow.nodes.find(n => n.type === 'TRIGGER_KEYWORD');
+                    let instance = activeFlowInstances.get(normalizedPhone);
+                    let targetFlow: any = null;
+                    
+                    if (instance) {
+                      targetFlow = flowStore.get(instance.flowId);
+                      if (!targetFlow) {
+                        activeFlowInstances.delete(normalizedPhone);
+                        instance = null;
+                      }
+                    }
+                    
+                    if (!instance && message.type === 'text') {
+                      const flows = Array.from(flowStore.values()).filter((f: any) => f.status === 'active') as any[];
+                      targetFlow = matchKeyword(contentText, flows);
                       
-                      if (startNode) {
-                        const instance = createFlowInstance(targetFlow, normalizedPhone, startNode.id);
-                        
-                        const sendMsg = async (phone: string, payload: any) => {
-                           console.log(`[webhook] Flow sending message to ${phone}:`, JSON.stringify(payload));
-                           let actualWamid = `wamid_flow_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+                      if (targetFlow) {
+                        console.log(`[webhook] Flow keyword matched: ${targetFlow.name}`);
+                        const startNode = targetFlow.nodes.find((n: any) => n.type === 'TRIGGER_KEYWORD');
+                        if (startNode) {
+                          instance = createFlowInstance(targetFlow, normalizedPhone, startNode.id);
+                          activeFlowInstances.set(normalizedPhone, instance);
+                        }
+                      }
+                    }
+
+                    if (instance && targetFlow) {
+                      // If resuming from a question node, record the response
+                      const startNodeId = targetFlow.nodes.find((n: any) => n.type === 'TRIGGER_KEYWORD')?.id;
+                      if (instance.status === 'active' && instance.currentNodeId !== startNodeId) {
+                        instance.responses[instance.currentNodeId] = contentText;
+                        instance.lastResponseAt = new Date().toISOString();
+                      }
+                      
+                      const sendMsg = async (phone: string, payload: any) => {
+                         console.log(`[webhook] Flow sending message to ${phone}:`, JSON.stringify(payload));
+                         let actualWamid = `wamid_flow_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+                         
+                         try {
+                           const phoneId = (value.metadata as any)?.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.NEXT_PUBLIC_WHATSAPP_PHONE_NUMBER_ID;
+                           const token = process.env.WHATSAPP_ACCESS_TOKEN || process.env.NEXT_PUBLIC_WHATSAPP_ACCESS_TOKEN;
                            
-                           try {
-                             const phoneId = (value.metadata as any)?.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.NEXT_PUBLIC_WHATSAPP_PHONE_NUMBER_ID;
-                             const token = process.env.WHATSAPP_ACCESS_TOKEN || process.env.NEXT_PUBLIC_WHATSAPP_ACCESS_TOKEN;
-                             
-                             if (phoneId && token) {
-                               payload.messaging_product = 'whatsapp';
-                               payload.recipient_type = 'individual';
-                               payload.to = phone.replace(/[^0-9]/g, '');
+                           if (phoneId && token) {
+                             payload.messaging_product = 'whatsapp';
+                             payload.recipient_type = 'individual';
+                             payload.to = phone.replace(/[^0-9]/g, '');
 
-                               const response = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
-                                 method: 'POST',
-                                 headers: {
-                                   Authorization: `Bearer ${token}`,
-                                   'Content-Type': 'application/json',
-                                 },
-                                 body: JSON.stringify(payload),
-                               });
+                             const response = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+                               method: 'POST',
+                               headers: {
+                                 Authorization: `Bearer ${token}`,
+                                 'Content-Type': 'application/json',
+                               },
+                               body: JSON.stringify(payload),
+                             });
 
-                               if (response.ok) {
-                                 const resData = await response.json();
-                                 if (resData.messages?.[0]?.id) {
-                                   actualWamid = resData.messages[0].id;
-                                   console.log(`[webhook] Flow message successfully sent to Meta, wamid: ${actualWamid}`);
-                                 }
-                               } else {
-                                 const errData = await response.json().catch(() => ({}));
-                                 console.error('[webhook] Meta API Error sending flow message:', JSON.stringify(errData));
+                             if (response.ok) {
+                               const resData = await response.json();
+                               if (resData.messages?.[0]?.id) {
+                                 actualWamid = resData.messages[0].id;
+                                 console.log(`[webhook] Flow message successfully sent to Meta, wamid: ${actualWamid}`);
                                }
                              } else {
-                               console.warn('[webhook] Missing Meta credentials for flow message send');
+                               const errData = await response.json().catch(() => ({}));
+                               console.error('[webhook] Meta API Error sending flow message:', JSON.stringify(errData));
                              }
-                           } catch (sendErr) {
-                             console.error('[webhook] Error in sendMsg fetch:', sendErr);
+                           } else {
+                             console.warn('[webhook] Missing Meta credentials for flow message send');
                            }
+                         } catch (sendErr) {
+                           console.error('[webhook] Error in sendMsg fetch:', sendErr);
+                         }
 
-                           const content = payload.text?.body || (payload.interactive?.body?.text ? payload.interactive.body.text + ' [Interactive]' : '[Flow Message]');
-                           
-                           // Emit to UI
-                           emitRealtimeMessage(phone, {
-                             id: actualWamid,
-                             content,
-                             timestamp: new Date().toISOString(),
-                             sender: 'user',
-                             status: 'DELIVERED',
-                             recipientId: 'contact',
-                           }, ownerWorkspaceId || 'salescloud-ws-1').catch(e => console.warn('[webhook] Flow realtime emit failed:', e));
-                           
-                           // Save to Salesforce
-                           if (ownerWorkspaceId === 'salescloud-ws-1' || !ownerWorkspaceId) {
-                              const scConnector = workspaceRegistry.getConnector('salescloud-ws-1') as any;
-                              if (scConnector) {
-                                await scConnector.saveOutboundMessage({
-                                  messageId: actualWamid,
-                                  recipientPhone: phone,
-                                  content,
-                                  status: 'SENT'
-                                });
-                              }
-                           }
-                        };
+                         const content = payload.text?.body || (payload.interactive?.body?.text ? payload.interactive.body.text + ' [Interactive]' : '[Flow Message]');
+                         
+                         // Emit to UI
+                         emitRealtimeMessage(phone, {
+                           id: actualWamid,
+                           content,
+                           timestamp: new Date().toISOString(),
+                           sender: 'user',
+                           status: 'DELIVERED',
+                           recipientId: 'contact',
+                         }, ownerWorkspaceId || 'salescloud-ws-1').catch(e => console.warn('[webhook] Flow realtime emit failed:', e));
+                         
+                         // Save to Salesforce
+                         if (ownerWorkspaceId === 'salescloud-ws-1' || !ownerWorkspaceId) {
+                            const scConnector = workspaceRegistry.getConnector('salescloud-ws-1') as any;
+                            if (scConnector) {
+                              await scConnector.saveOutboundMessage({
+                                messageId: actualWamid,
+                                recipientPhone: phone,
+                                content,
+                                status: 'SENT'
+                              });
+                            }
+                         }
+                      };
 
-                        await executeFlowNodes(targetFlow, instance, sendMsg);
+                      const updatedInstance = await executeFlowNodes(targetFlow, instance, sendMsg);
+                      
+                      if (updatedInstance.status === 'completed') {
+                        activeFlowInstances.delete(normalizedPhone);
+                        console.log(`[webhook] Flow completed for ${normalizedPhone}`);
+                      } else {
+                        activeFlowInstances.set(normalizedPhone, updatedInstance);
+                        console.log(`[webhook] Flow waiting on node ${updatedInstance.currentNodeId} for ${normalizedPhone}`);
                       }
                     }
                   } catch (flowErr) {

@@ -4,6 +4,9 @@ import { v4 as uuidv4 } from 'uuid';
 const globalAny: any = global;
 if (!globalAny.flowStore) {
   const store = new Map<string, ConversationFlow>();
+  const activeInstances = new Map<string, any>();
+  globalAny.activeFlowInstances = activeInstances;
+
   
   const demoFlow: ConversationFlow = {
     id: 'flow-demo-1',
@@ -183,3 +186,4 @@ if (!globalAny.flowStore.has('flow-demo-1')) {
 }
 
 export const flowStore = globalAny.flowStore;
+export const activeFlowInstances = globalAny.activeFlowInstances;
