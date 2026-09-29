@@ -32,6 +32,7 @@ export async function emitRealtimeMessage(phoneNumber: string, message: {
   mediaId?: string;
   mediaUrl?: string;
   filename?: string;
+  contextMessageId?: string;
 }, workspaceId: string) {
   const appUrl = resolveAppUrl();
 
