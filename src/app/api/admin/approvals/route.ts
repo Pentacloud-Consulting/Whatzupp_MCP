@@ -264,14 +264,16 @@ export async function POST(request: NextRequest) {
           }
 
           if (!requestId.startsWith('req-')) {
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            const validApproverId = session?.userId && uuidRegex.test(session.userId) ? session.userId : null;
             await prisma.signupRequest.update({
               where: { id: requestId },
               data: {
                 status: 'APPROVED',
-                approvedBy: session?.userId || null,
+                approvedBy: validApproverId,
                 approvedAt: new Date(),
               },
-            }).catch(() => {});
+            }).catch((e) => { console.error('Error updating signup request', e) });
           }
 
           await prisma.auditLog.create({
