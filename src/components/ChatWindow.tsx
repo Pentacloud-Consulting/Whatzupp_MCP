@@ -653,6 +653,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                     quoteText = 'Original message';
                     quoteSender = 'You';
                   }
+                } else if (!isSent) {
+                  // Heuristic for interactive button responses loaded from DB without contextMessageId
+                  const textLower = rawText.toLowerCase().trim();
+                  const isTypicalButton = ['yes', 'no', 'salesforce', 'zoho', 'marketing cloud'].includes(textLower);
+                  if (isTypicalButton) {
+                    const idx = messages.findIndex(m => m.id === message.id);
+                    if (idx > 0) {
+                      for (let i = idx - 1; i >= Math.max(0, idx - 4); i--) {
+                        if (messages[i].sender === 'user' && messages[i].content?.includes('[Interactive]')) {
+                          quoteText = messages[i].content?.replace(/\[.*?\]/g, '').trim() || 'Question';
+                          quoteSender = 'You';
+                          break;
+                        }
+                      }
+                    }
+                  }
                 }
                 
                 const hasQuote = !!quoteText;
