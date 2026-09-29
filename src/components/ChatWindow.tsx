@@ -628,6 +628,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                 const isFirstInGroup = index === 0 || dateMessages[index - 1].sender !== message.sender;
                 const isLastInGroup = index === dateMessages.length - 1 || dateMessages[index + 1]?.sender !== message.sender;
                 const mods = localMods[message.id] || {};
+                const isSfmc = isSent && /^\[Template:\s/.test(message.content || '');
+
                 let rawText = message.content || '';
                 let quoteText = '';
                 let quoteSender = isSent ? 'You' : contact.name;
