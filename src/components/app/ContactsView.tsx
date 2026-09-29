@@ -98,6 +98,8 @@ export default function ContactsView() {
             ownerUserId: c.ownerUserId,
             createdByUserId: c.createdByUserId,
             ownerName: c.ownerName,
+            isCovered: c.isCovered || false,
+            coverageOwnerId: c.coverageOwnerId,
           }));
           setLiveContacts(formatted);
         } else {
@@ -129,7 +131,12 @@ export default function ContactsView() {
           name: localC.name !== liveC.name ? localC.name : liveC.name,
           tags: localC.tags?.length && localC.tags.join(',') !== liveC.tags.join(',') ? localC.tags : liveC.tags,
           company: localC.company || liveC.company,
-          email: localC.email || liveC.email
+          email: localC.email || liveC.email,
+          // Always preserve live coverage data
+          isCovered: liveC.isCovered,
+          coverageEndTime: liveC.coverageEndTime,
+          primaryAssigneeId: liveC.primaryAssigneeId || localC.primaryAssigneeId,
+          ownerUserId: liveC.ownerUserId || localC.ownerUserId,
         });
       } else {
         mergedMap.set(localC.id, localC);
