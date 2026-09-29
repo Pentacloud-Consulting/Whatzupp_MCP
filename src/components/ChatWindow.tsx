@@ -640,7 +640,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                     rawText = parts.slice(1).join('\n\n').trim();
                   }
                 } else if (message.contextMessageId) {
-                  const originalMsg = messages.find(m => m.id === message.contextMessageId || m.originalId === message.contextMessageId || m.id === message.contextMessageId.replace('wamid_', ''));
+                  const ctxId = message.contextMessageId;
+                  const originalMsg = messages.find(m => m.id === ctxId || m.originalId === ctxId || m.id === ctxId.replace('wamid_', ''));
                   if (originalMsg) {
                     quoteText = originalMsg.content || 'Media message';
                     // Clean up markdown/tags from the quote
