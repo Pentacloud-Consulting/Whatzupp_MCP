@@ -69,11 +69,24 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'DELETE') {
+      if (requestId.startsWith('req-') && process.env.VERCEL) {
+        return NextResponse.json({
+          success: false,
+          error: 'Demo/mock requests cannot be deleted in the Vercel production environment (read-only filesystem).',
+        });
+      }
+
       deleteLocalSignupRequest(requestId);
       if (hasDatabaseUrl()) {
         try {
-          await prisma.signupRequest.delete({ where: { id: requestId } }).catch(() => {});
-        } catch {}
+          await prisma.signupRequest.delete({ where: { id: requestId } });
+        } catch (e: any) {
+          console.error('Error deleting from Prisma:', e);
+          return NextResponse.json({
+            success: false,
+            error: 'Failed to delete from database: ' + (e.message || 'Unknown error'),
+          }, { status: 500 });
+        }
       }
       return NextResponse.json({
         success: true,
