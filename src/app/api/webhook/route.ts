@@ -414,12 +414,48 @@ export async function POST(request: Request) {
                         
                         const sendMsg = async (phone: string, payload: any) => {
                            console.log(`[webhook] Flow sending message to ${phone}:`, JSON.stringify(payload));
-                           const wamid = `wamid_flow_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+                           let actualWamid = `wamid_flow_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+                           
+                           try {
+                             const phoneId = (value.metadata as any)?.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.NEXT_PUBLIC_WHATSAPP_PHONE_NUMBER_ID;
+                             const token = process.env.WHATSAPP_ACCESS_TOKEN || process.env.NEXT_PUBLIC_WHATSAPP_ACCESS_TOKEN;
+                             
+                             if (phoneId && token) {
+                               payload.messaging_product = 'whatsapp';
+                               payload.recipient_type = 'individual';
+                               payload.to = phone.replace(/[^0-9]/g, '');
+
+                               const response = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {
+                                 method: 'POST',
+                                 headers: {
+                                   Authorization: `Bearer ${token}`,
+                                   'Content-Type': 'application/json',
+                                 },
+                                 body: JSON.stringify(payload),
+                               });
+
+                               if (response.ok) {
+                                 const resData = await response.json();
+                                 if (resData.messages?.[0]?.id) {
+                                   actualWamid = resData.messages[0].id;
+                                   console.log(`[webhook] Flow message successfully sent to Meta, wamid: ${actualWamid}`);
+                                 }
+                               } else {
+                                 const errData = await response.json().catch(() => ({}));
+                                 console.error('[webhook] Meta API Error sending flow message:', JSON.stringify(errData));
+                               }
+                             } else {
+                               console.warn('[webhook] Missing Meta credentials for flow message send');
+                             }
+                           } catch (sendErr) {
+                             console.error('[webhook] Error in sendMsg fetch:', sendErr);
+                           }
+
                            const content = payload.text?.body || (payload.interactive?.body?.text ? payload.interactive.body.text + ' [Interactive]' : '[Flow Message]');
                            
                            // Emit to UI
                            emitRealtimeMessage(phone, {
-                             id: wamid,
+                             id: actualWamid,
                              content,
                              timestamp: new Date().toISOString(),
                              sender: 'user',
@@ -432,7 +468,7 @@ export async function POST(request: Request) {
                               const scConnector = workspaceRegistry.getConnector('salescloud-ws-1') as any;
                               if (scConnector) {
                                 await scConnector.saveOutboundMessage({
-                                  messageId: wamid,
+                                  messageId: actualWamid,
                                   recipientPhone: phone,
                                   content,
                                   status: 'SENT'
