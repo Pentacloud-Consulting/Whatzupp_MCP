@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
             await prisma.auditLog.create({
               data: {
                 tenantId: updated.id,
-                action: \`TENANT_STATUS_\${newStatus}\`,
+                action: `TENANT_STATUS_${newStatus}`,
                 performedBy: session?.userId || 'SUPER_ADMIN',
               }
             });
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
 
       // Fallback
       const newT = {
-        id: \`t-\${Date.now()}\`,
+        id: `t-${Date.now()}`,
         name: name || 'New Enterprise Client',
         tenantCode: code,
         status: 'active' as const,
