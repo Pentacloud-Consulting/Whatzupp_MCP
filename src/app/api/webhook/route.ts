@@ -409,7 +409,7 @@ export async function POST(request: Request) {
                 if ((message.type === 'text' || message.type === 'interactive') && contentText) {
                   try {
                     const { flowStore, activeFlowInstances } = await import('@/lib/conversationFlows/flowStore');
-                    const { matchKeyword, createFlowInstance, executeFlowNodes } = await import('@/lib/conversationFlows/flowExecutionEngine');
+                    const { matchKeyword, createFlowInstance, executeFlowNodes, findNextNode } = await import('@/lib/conversationFlows/flowExecutionEngine');
                     
                     let instance = activeFlowInstances.get(normalizedPhone);
                     let targetFlow: any = null;
@@ -437,11 +437,18 @@ export async function POST(request: Request) {
                     }
 
                     if (instance && targetFlow) {
-                      // If resuming from a question node, record the response
+                      // If resuming from a question node, record the response and advance the node
                       const startNodeId = targetFlow.nodes.find((n: any) => n.type === 'TRIGGER_KEYWORD')?.id;
                       if (instance.status === 'active' && instance.currentNodeId !== startNodeId) {
                         instance.responses[instance.currentNodeId] = contentText;
                         instance.lastResponseAt = new Date().toISOString();
+                        
+                        const nextNode = findNextNode(targetFlow, instance.currentNodeId, contentText);
+                        if (nextNode) {
+                          instance.currentNodeId = nextNode.id;
+                        } else {
+                          console.log(`[webhook] Could not find next node for response: ${contentText}`);
+                        }
                       }
                       
                       const sendMsg = async (phone: string, payload: any) => {
