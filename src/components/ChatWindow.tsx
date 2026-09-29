@@ -964,19 +964,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ═══ REPLY PREVIEW BAR ═══ */}
-      {replyingTo && (
-        <div className="bg-[#25D366]/[0.03] border-t border-[#25D366]/10 px-5 py-3 flex items-center justify-between z-10 shrink-0">
-          <div className="flex-1 min-w-0 border-l-[3px] border-[#25D366] pl-3">
-            <p className="text-[12px] font-bold text-[#25D366] mb-0.5">
-              Replying to {replyingTo.sender === 'user' ? 'yourself' : contact.name}
-            </p>
-            <p className="text-[13px] text-gray-500 truncate font-medium">{replyingTo.content}</p>
-          </div>
-          <button onClick={() => setReplyingTo(null)} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors shrink-0 ml-4"><X size={16} /></button>
-        </div>
-      )}
-
       {/* ═══ FAST REPLY CHIPS ═══ */}
       <AnimatePresence>
         {showFastReplies && (
@@ -990,6 +977,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ═══ REPLY PREVIEW BAR ═══ */}
+      {replyingTo && (
+        <div className="bg-[#25D366]/[0.03] border-t border-[#25D366]/10 px-5 py-3 flex items-center justify-between z-10 shrink-0">
+          <div className="flex-1 min-w-0 border-l-[3px] border-[#25D366] pl-3">
+            <p className="text-[12px] font-bold text-[#25D366] mb-0.5">
+              Replying to {replyingTo.sender === 'user' ? 'yourself' : contact.name}
+            </p>
+            <p className="text-[13px] text-gray-500 truncate font-medium">{replyingTo.content}</p>
+          </div>
+          <button onClick={() => setReplyingTo(null)} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors shrink-0 ml-4"><X size={16} /></button>
+        </div>
+      )}
 
       {/* ═══ INPUT BAR ═══ */}
       <div className="px-4 py-3 bg-white/80 backdrop-blur-xl border-t border-gray-200/80 flex items-end gap-2.5 z-20 shrink-0 relative">
