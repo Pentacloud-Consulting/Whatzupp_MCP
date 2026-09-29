@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantId = session.tenantId || 'PENTA001';
-    const newUserId = \`usr_\${uuidv4()}\`;
+    const newUserId = `usr_${uuidv4()}`;
     const wsArray = Array.isArray(workspaces) ? workspaces : ['SFMC'];
 
     // For login verification — store bcrypt hash in SF Password__c field
