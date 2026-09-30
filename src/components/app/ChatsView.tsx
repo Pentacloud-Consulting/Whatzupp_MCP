@@ -131,6 +131,21 @@ export default function ChatsView() {
           [normPhone]: [...contactMessages, incomingMessageEvent.message]
         };
       });
+
+      // Update contact status dynamically
+      const msg = incomingMessageEvent.message;
+      if (msg && msg.sender === 'contact' && msg.content) {
+        const text = msg.content.trim().toLowerCase();
+        const isStop = /^(stop|unsubscribe|cancel|quit|end)$/.test(text);
+        const newStatus = isStop ? 'Unsubscribed' : 'Subscribed';
+        
+        setAllBackendContacts(prev => prev.map(c => {
+          if (normalizePhone(c.phoneNumber) === normPhone && c.whatsappStatus !== newStatus) {
+            return { ...c, whatsappStatus: newStatus };
+          }
+          return c;
+        }));
+      }
     }
   }, [incomingMessageEvent]);
 
@@ -290,6 +305,23 @@ export default function ChatsView() {
         return true;
       });
       setMessages(prev => ({ ...prev, [key]: deduped }));
+
+      // Auto-update whatsappStatus based on the most recent inbound message
+      const inboundMessages = deduped.filter(m => m.sender === 'contact');
+      if (inboundMessages.length > 0) {
+        const latestInbound = [...inboundMessages].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+        if (latestInbound && latestInbound.content) {
+          const text = latestInbound.content.trim().toLowerCase();
+          const isStop = /^(stop|unsubscribe|cancel|quit|end)$/.test(text);
+          const newStatus = isStop ? 'Unsubscribed' : 'Subscribed';
+          setAllBackendContacts(prev => prev.map(c => {
+            if (normalizePhone(c.phoneNumber) === key && c.whatsappStatus !== newStatus) {
+              return { ...c, whatsappStatus: newStatus };
+            }
+            return c;
+          }));
+        }
+      }
     }
   }, [realtimeMessages, realtimeMessagesPhone, selectedContact]);
 
