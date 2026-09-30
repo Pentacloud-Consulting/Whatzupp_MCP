@@ -11,6 +11,7 @@ export interface Contact {
     designation?: string;
     location?: string;
     tags?: string[];
+    whatsappStatus?: 'Subscribed' | 'Unsubscribed';
     salesforceObjectType?: string;
     salesforceRecordId?: string;
     leadStatus?: string;
@@ -21,6 +22,7 @@ export interface Contact {
     isCovered?: boolean;
     originalAssigneeId?: string;
     coverageEndTime?: string;
+    whatsappStatus?: 'Subscribed' | 'Unsubscribed';
   }
   
   // Different statuses a message can have
@@ -159,6 +161,7 @@ export interface Contact {
     designation?: string;
     location?: string;
     tags?: string[];
+    whatsappStatus?: 'Subscribed' | 'Unsubscribed';
     salesforceObjectType?: string;
     salesforceRecordId?: string;
     leadStatus?: string;
@@ -169,6 +172,7 @@ export interface Contact {
     isCovered?: boolean;
     originalAssigneeId?: string;
     coverageEndTime?: string;
+    whatsappStatus?: 'Subscribed' | 'Unsubscribed';
   }
   
   
