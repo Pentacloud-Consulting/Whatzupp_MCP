@@ -575,17 +575,31 @@ export async function POST(request: Request) {
                   }
                 }
 
-                // ---- Opt-Out Processing (STOP keywords) ----
+                // ---- Subscription Status Processing ----
                 const bodyText = contentText?.trim().toLowerCase() || '';
-                if (/^(stop|unsubscribe|cancel|quit|end)$/.test(bodyText) && message.type === 'text') {
-                  console.log(`[webhook] Opt-Out keyword detected from ${message.from}. Marking as unsubscribed.`);
-                  try {
-                    await writeOptOutStatus(message.from as string, 'OptOut');
-                  } catch (e) {
-                    console.error('[webhook] writeOptOutStatus failed:', e);
+                const isStop = /^(stop|unsubscribe|cancel|quit|end)$/.test(bodyText) && message.type === 'text';
+                
+                try {
+                  const scConnector = workspaceRegistry.getConnector('salescloud-ws-1') as any;
+                  if (scConnector) {
+                    const contact = await scConnector.findContact({ phoneNumber: normalizedPhone });
+                    if (contact && (contact.salesforceObjectType === 'Lead' || contact.salesforceObjectType === 'Contact') && contact.salesforceRecordId) {
+                      if (isStop) {
+                        if (contact.whatsappStatus !== 'Unsubscribed') {
+                          console.log(`[webhook] Opt-Out keyword detected from ${normalizedPhone}. Marking as Unsubscribed in Salesforce.`);
+                          await scConnector.updateWhatsAppStatus(contact.salesforceRecordId, contact.salesforceObjectType, 'Unsubscribed', normalizedPhone, contentText);
+                        }
+                      } else {
+                        if (contact.whatsappStatus === 'Unsubscribed') {
+                          console.log(`[webhook] Inbound message from unsubscribed contact ${normalizedPhone}. Auto-resubscribing in Salesforce.`);
+                          await scConnector.updateWhatsAppStatus(contact.salesforceRecordId, contact.salesforceObjectType, 'Subscribed', normalizedPhone, contentText);
+                        }
+                      }
+                    }
                   }
+                } catch (e) {
+                  console.error('[webhook] WhatsApp Status update failed:', e);
                 }
-
               } catch (storeError) {
                 console.error("[webhook] Error processing message:", storeError);
               }

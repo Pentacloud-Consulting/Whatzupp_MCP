@@ -78,6 +78,7 @@ export default function ChatsView() {
             isCovered: wc.isCovered,
             originalAssigneeId: wc.originalAssigneeId,
             coverageEndTime: wc.coverageEndTime,
+            whatsappStatus: backendMatch?.whatsappStatus || wc.whatsappStatus,
           } as Contact;
         });
       }
@@ -184,6 +185,7 @@ export default function ChatsView() {
             name: c.name || c.phoneNumber,
             phoneNumber: normalizePhone(c.phoneNumber),
             online: undefined,
+            whatsappStatus: c.whatsappStatus,
           }));
           setAllBackendContacts(wsContacts);
 

@@ -100,6 +100,7 @@ export default function ContactsView() {
             ownerName: c.ownerName,
             isCovered: c.isCovered || false,
             coverageOwnerId: c.coverageOwnerId,
+            whatsappStatus: c.whatsappStatus,
           }));
           setLiveContacts(formatted);
         } else {
@@ -137,6 +138,7 @@ export default function ContactsView() {
           coverageEndTime: liveC.coverageEndTime,
           primaryAssigneeId: liveC.primaryAssigneeId || localC.primaryAssigneeId,
           ownerUserId: liveC.ownerUserId || localC.ownerUserId,
+          whatsappStatus: liveC.whatsappStatus || localC.whatsappStatus,
         });
       } else {
         mergedMap.set(localC.id, localC);

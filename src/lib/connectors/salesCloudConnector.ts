@@ -83,14 +83,14 @@ export class SalesCloudConnector implements Connector {
       }
 
       // Query Leads from Salesforce (all Leads in org, ordered by newest first)
-      let leadSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c FROM Lead ORDER BY CreatedDate DESC LIMIT ${limit}`;
+      let leadSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c, WhatsApp_Status__c FROM Lead ORDER BY CreatedDate DESC LIMIT ${limit}`;
       // Query Contacts from Salesforce (ONLY those created/synced via WhatZupp, ignoring standard sample contacts)
-      let contactSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c FROM Contact WHERE WhatZupp_Sync_Status__c != null ORDER BY LastModifiedDate DESC LIMIT ${limit}`;
+      let contactSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c, WhatsApp_Status__c FROM Contact WHERE WhatZupp_Sync_Status__c != null ORDER BY LastModifiedDate DESC LIMIT ${limit}`;
 
       if (params.search) {
         const q = params.search.replace(/'/g, "\\'");
-        leadSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c FROM Lead WHERE (Name LIKE '%${q}%' OR Phone LIKE '%${q}%' OR MobilePhone LIKE '%${q}%' OR Email LIKE '%${q}%' OR Company LIKE '%${q}%') ORDER BY CreatedDate DESC LIMIT ${limit}`;
-        contactSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c FROM Contact WHERE WhatZupp_Sync_Status__c != null AND (Name LIKE '%${q}%' OR Phone LIKE '%${q}%' OR MobilePhone LIKE '%${q}%' OR Email LIKE '%${q}%') ORDER BY LastModifiedDate DESC LIMIT ${limit}`;
+        leadSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c, WhatsApp_Status__c FROM Lead WHERE (Name LIKE '%${q}%' OR Phone LIKE '%${q}%' OR MobilePhone LIKE '%${q}%' OR Email LIKE '%${q}%' OR Company LIKE '%${q}%') ORDER BY CreatedDate DESC LIMIT ${limit}`;
+        contactSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c, WhatsApp_Status__c FROM Contact WHERE WhatZupp_Sync_Status__c != null AND (Name LIKE '%${q}%' OR Phone LIKE '%${q}%' OR MobilePhone LIKE '%${q}%' OR Email LIKE '%${q}%') ORDER BY LastModifiedDate DESC LIMIT ${limit}`;
       }
 
       let headers = { Authorization: `Bearer ${access_token}` };
@@ -130,6 +130,7 @@ export class SalesCloudConnector implements Connector {
             labels: r.WhatZupp_Labels__c || '',
             primaryAssigneeId: r.WhatZupp_Assignee__c || undefined,
             ownerUserId: r.WhatZupp_Assignee__c || undefined,
+            whatsappStatus: r.WhatsApp_Status__c || 'Subscribed',
           });
         });
       }
@@ -149,6 +150,7 @@ export class SalesCloudConnector implements Connector {
             labels: r.WhatZupp_Labels__c || '',
             primaryAssigneeId: r.WhatZupp_Assignee__c || undefined,
             ownerUserId: r.WhatZupp_Assignee__c || undefined,
+            whatsappStatus: r.WhatsApp_Status__c || 'Subscribed',
           });
         });
       }
@@ -719,6 +721,13 @@ export class SalesCloudConnector implements Connector {
     mimeType?: string;
     filename?: string;
   }): Promise<{ messageId: string; status: string }> {
+    // 0. Enforce Unsubscribed blocking
+    const contact = await this.findContact({ phoneNumber: params.recipientPhone });
+    if (contact?.whatsappStatus === 'Unsubscribed') {
+      console.warn(`[SalesCloudConnector] Blocked outbound message to unsubscribed contact: ${params.recipientPhone}`);
+      throw new Error('Contact has unsubscribed from WhatsApp messages. Outbound messaging is disabled.');
+    }
+
     // 1. Send via WhatsApp Meta API (text or media)
     const waResult = await sendWhatsAppMessage({
       to: params.recipientPhone,
@@ -1096,8 +1105,8 @@ export class SalesCloudConnector implements Connector {
       const cleanDigits = phone.replace(/[^0-9]/g, '');
       const last10 = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
 
-      // 1. Query existing Contact first
-      const contactSoql = `SELECT Id, Name, Email, Phone, MobilePhone FROM Contact WHERE Phone = '${safePhone}' OR MobilePhone = '${safePhone}' OR Phone LIKE '%${last10}' OR MobilePhone LIKE '%${last10}' LIMIT 1`;
+      // 1. Query existing Contact first (only those synced with WhatZupp)
+      const contactSoql = `SELECT Id, Name, Email, Phone, MobilePhone, WhatsApp_Status__c FROM Contact WHERE WhatZupp_Sync_Status__c != null AND (Phone = '${safePhone}' OR MobilePhone = '${safePhone}' OR Phone LIKE '%${last10}' OR MobilePhone LIKE '%${last10}') LIMIT 1`;
       const contactRecords = await this.execSoql(contactSoql);
 
       if (contactRecords.length > 0) {
@@ -1108,14 +1117,14 @@ export class SalesCloudConnector implements Connector {
           phoneNumber: phone,
           salesforceObjectType: 'Contact',
           salesforceRecordId: r.Id,
-          email: r.Email,
-          company: 'Salesforce Contact',
+          email: r.Email || '',
           lastSyncedAt: new Date().toISOString(),
+          whatsappStatus: r.WhatsApp_Status__c || 'Subscribed',
         };
       }
 
-      // 2. Query existing Lead second
-      const leadSoql = `SELECT Id, Name, Email, Phone, MobilePhone, Company FROM Lead WHERE Phone = '${safePhone}' OR MobilePhone = '${safePhone}' OR Phone LIKE '%${last10}' OR MobilePhone LIKE '%${last10}' LIMIT 1`;
+      // 2. Query existing Lead next
+      const leadSoql = `SELECT Id, Name, Email, Phone, MobilePhone, WhatsApp_Status__c FROM Lead WHERE Phone = '${safePhone}' OR MobilePhone = '${safePhone}' OR Phone LIKE '%${last10}' OR MobilePhone LIKE '%${last10}' LIMIT 1`;
       const leadRecords = await this.execSoql(leadSoql);
 
       if (leadRecords.length > 0) {
@@ -1126,11 +1135,12 @@ export class SalesCloudConnector implements Connector {
           phoneNumber: phone,
           salesforceObjectType: 'Lead',
           salesforceRecordId: r.Id,
-          email: r.Email,
-          company: r.Company || 'Salesforce Lead',
+          email: r.Email || '',
           lastSyncedAt: new Date().toISOString(),
+          whatsappStatus: r.WhatsApp_Status__c || 'Subscribed',
         };
       }
+
 
       // 3. Fallback mock list check
       const normSearch = normalizePhoneNumber(phone);
@@ -1626,4 +1636,43 @@ export class SalesCloudConnector implements Connector {
   }
 
 
+  async updateWhatsAppStatus(contactId: string, objectType: 'Lead' | 'Contact', status: 'Subscribed' | 'Unsubscribed', phoneNumber: string, triggerMessage: string): Promise<void> {
+    const { access_token, instance_url } = await getSalesCloudAccessToken();
+    if (access_token.startsWith('mock-')) return;
+    
+    // Update Lead/Contact
+    const endpoint = `${instance_url}/services/data/v59.0/sobjects/${objectType}/${contactId}`;
+    const patchRes = await fetch(endpoint, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ WhatsApp_Status__c: status })
+    });
+    if (!patchRes.ok) {
+      console.error(`[SalesCloudConnector] updateWhatsAppStatus PATCH failed: ${patchRes.status} - ${await patchRes.text()}`);
+    }
+
+    // Create Log
+    const logEndpoint = `${instance_url}/services/data/v59.0/sobjects/WhatsApp_Subscription_Log__c`;
+    const postRes = await fetch(logEndpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        Contact_Lead_Id__c: contactId,
+        Phone_Number__c: phoneNumber,
+        Action__c: status,
+        Trigger_Message__c: triggerMessage,
+        Timestamp__c: new Date().toISOString()
+      })
+    });
+    if (!postRes.ok) {
+      console.error(`[SalesCloudConnector] updateWhatsAppStatus POST log failed: ${postRes.status} - ${await postRes.text()}`);
+    }
+  }
 }
+
