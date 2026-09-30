@@ -26,6 +26,7 @@ export interface WorkspaceContactResult {
   lastSyncedAt: string;
   labels?: string; // comma-separated label names stored in Salesforce WhatZupp_Labels__c
   ownerUserId?: string;
+  whatsappStatus?: 'Subscribed' | 'Unsubscribed';
   primaryAssigneeId?: string;
   createdByUserId?: string;
   teamId?: string;

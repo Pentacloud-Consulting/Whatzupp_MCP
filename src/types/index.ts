@@ -11,7 +11,6 @@ export interface Contact {
     designation?: string;
     location?: string;
     tags?: string[];
-    whatsappStatus?: 'Subscribed' | 'Unsubscribed';
     salesforceObjectType?: string;
     salesforceRecordId?: string;
     leadStatus?: string;
@@ -161,7 +160,6 @@ export interface Contact {
     designation?: string;
     location?: string;
     tags?: string[];
-    whatsappStatus?: 'Subscribed' | 'Unsubscribed';
     salesforceObjectType?: string;
     salesforceRecordId?: string;
     leadStatus?: string;
