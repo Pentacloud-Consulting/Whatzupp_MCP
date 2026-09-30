@@ -145,6 +145,13 @@ export default function ChatsView() {
           }
           return c;
         }));
+
+        setSelectedContact(prev => {
+          if (prev && normalizePhone(prev.phoneNumber) === normPhone && prev.whatsappStatus !== newStatus) {
+            return { ...prev, whatsappStatus: newStatus };
+          }
+          return prev;
+        });
       }
     }
   }, [incomingMessageEvent]);
@@ -320,6 +327,13 @@ export default function ChatsView() {
             }
             return c;
           }));
+
+          setSelectedContact(prev => {
+            if (prev && normalizePhone(prev.phoneNumber) === key && prev.whatsappStatus !== newStatus) {
+              return { ...prev, whatsappStatus: newStatus };
+            }
+            return prev;
+          });
         }
       }
     }

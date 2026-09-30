@@ -26,6 +26,7 @@ import ListsView from '@/components/app/ListsView';
 import UsersView from '@/components/app/UsersView';
 import CoverageDashboard from '@/components/app/CoverageDashboard';
 import ConversationFlowsView from '@/components/conversationFlows/ConversationFlowsView';
+import { useFollowUpScheduler } from '@/hooks/useFollowUpScheduler';
 import type { AppScreen } from '@/types/workspace';
 
 class ViewErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: string }> {
@@ -86,6 +87,9 @@ export default function AppShell() {
   const { state, setActiveScreen, activeWorkspace, activeContacts } = useWorkspace();
   const { user, isSuperAdmin, hasWorkspacePermission, logout, isLoading: isAuthLoading } = useAuth();
   const [isMobile, setIsMobile] = useState(false);
+
+  // ─── Follow-Up Scheduler: polls /api/followup/process every 30s to auto-send due messages ───
+  useFollowUpScheduler(30000);
   const [telemetry, setTelemetry] = useState({
     totalConversations: 0,
     newToday: 0,

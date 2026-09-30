@@ -280,5 +280,10 @@
       "createdDate": "2026-09-28T08:28:52.410Z"
     }
   ],
-  "coverage_cache_tenant-1": []
+  "coverage_cache_tenant-1": [],
+  "cfg_conversation_owner:919952374972": {
+    "workspaceId": "salescloud-ws-1",
+    "updatedAt": "2026-09-30T11:49:49.977Z",
+    "assignedBy": "outbound"
+  }
 }

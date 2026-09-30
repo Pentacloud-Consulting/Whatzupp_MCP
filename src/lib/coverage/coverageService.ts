@@ -31,11 +31,13 @@ export class CoverageService {
 
     const isApprovalRequired = false; // Could be fetched from Tenant Config
 
+    const isFuture = new Date(coverageData.startTime!).getTime() > Date.now();
+
     const newCoverage: CoverageTransfer = {
       ...coverageData,
       id: coverageData.id || `cov-${Date.now()}`,
-      status: 'ACTIVE',
-      effectiveStatus: isApprovalRequired ? 'PENDING' : 'ACTIVE',
+      status: isFuture ? 'PLANNED' : 'ACTIVE',
+      effectiveStatus: isApprovalRequired ? 'PENDING' : (isFuture ? 'SCHEDULED' : 'ACTIVE'),
       approvalStatus: isApprovalRequired ? 'PENDING' : 'APPROVED',
       coverageVersion: 1,
       isDeleted: false,

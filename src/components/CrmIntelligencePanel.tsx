@@ -6,7 +6,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Phone, Mail, MessageSquare, MoreHorizontal, Copy, Check, ExternalLink,
-  Sparkles, RefreshCw, Shield, MapPin, Building, Briefcase, User, Star, ChevronRight, Edit3, X, Save
+  Sparkles, RefreshCw, Shield, MapPin, Building, Briefcase, User, Star, ChevronRight, Edit3, X, Save, Trash2,
+  Calendar, Clock, FileText, CheckCircle2
 } from 'lucide-react';
 import { Contact } from '@/types';
 import { useWorkspace } from '@/components/workspace/WorkspaceProvider';
@@ -35,6 +36,56 @@ export default function CrmIntelligencePanel({ contact, onClose, onUpdateContact
     location: '',
     tags: ''
   });
+
+  // ─── Follow Ups State for Selected Contact ───
+  const [followUps, setFollowUps] = useState<Array<{ id: string; date: string; time: string; message: string; status: string; createdAt: string }>>([]);
+
+  const loadFollowUps = React.useCallback(async () => {
+    if (!contact) return;
+    try {
+      const res = await fetch(`/api/followup?contactId=${contact.id}`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setFollowUps(data.followUps || []);
+      }
+    } catch (e) {
+      console.warn('Failed to load follow-ups', e);
+    }
+  }, [contact]);
+
+  useEffect(() => {
+    loadFollowUps();
+  }, [contact, loadFollowUps]);
+
+  useEffect(() => {
+    const handleFollowUpEvent = (e: any) => {
+      if (contact && e.detail?.contactId === contact.id) {
+        if (e.detail?.followUps) {
+          setFollowUps(e.detail.followUps);
+        } else {
+          loadFollowUps();
+        }
+      }
+      // Also handle scheduler-level broadcasts (no contactId filter, reload all)
+      if (e.detail?.source === 'scheduler') {
+        loadFollowUps();
+      }
+    };
+
+    const handleFollowUpSent = (e: any) => {
+      if (!contact) return;
+      const { id, status } = e.detail || {};
+      if (!id) return;
+      setFollowUps(prev => prev.map(fu => fu.id === id ? { ...fu, status: status || 'Sent' } : fu));
+    };
+
+    window.addEventListener('wz_followup_updated', handleFollowUpEvent);
+    window.addEventListener('wz_followup_sent', handleFollowUpSent);
+    return () => {
+      window.removeEventListener('wz_followup_updated', handleFollowUpEvent);
+      window.removeEventListener('wz_followup_sent', handleFollowUpSent);
+    };
+  }, [contact, loadFollowUps]);
 
   // Sync edit fields whenever the selected contact or active workspace changes
   useEffect(() => {
@@ -350,6 +401,83 @@ export default function CrmIntelligencePanel({ contact, onClose, onUpdateContact
           )}
         </div>
 
+        {/* ─── Scheduled Follow-Ups Section (Right Side Panel) ─── */}
+        <div className="bg-gradient-to-br from-emerald-50 via-teal-50/60 to-emerald-100/50 border border-emerald-300/80 rounded-2xl p-3.5 space-y-2.5 shadow-2xs relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-slate-900 font-extrabold text-xs">
+              <div className="w-6 h-6 rounded-lg bg-[#00C853] text-white flex items-center justify-center shadow-2xs">
+                <Calendar size={14} />
+              </div>
+              <span>Scheduled Follow-Ups ({followUps.length})</span>
+            </div>
+            <span className="px-2 py-0.5 rounded-full bg-[#00C853] text-white font-extrabold text-[9px] tracking-wider uppercase shadow-2xs">
+              Active
+            </span>
+          </div>
+
+          {followUps.length === 0 ? (
+            <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 text-center border border-emerald-100/80">
+              <p className="text-xs font-semibold text-slate-500">No scheduled follow-ups yet.</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Use the "Follow Up" button in chat header to set a reminder.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {followUps.map(fu => (
+                <div key={fu.id} className="bg-white rounded-xl p-3 border border-emerald-200/80 shadow-2xs space-y-1.5 transition-all hover:border-emerald-300">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-900">
+                      <Clock size={13} className="text-[#00C853]" />
+                      <span>{fu.date} at {fu.time}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {fu.status === 'Scheduled' && (
+                        <div className="flex items-center gap-1 mr-1">
+                          <button
+                            onClick={() => window.dispatchEvent(new CustomEvent('wz_followup_edit', { detail: { contactId: contact?.id, followUp: fu } }))}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Edit Follow-Up"
+                          >
+                            <Edit3 size={13} />
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Are you sure you want to delete this scheduled follow-up?')) return;
+                              try {
+                                await fetch(`/api/followup?id=${fu.id}`, { method: 'DELETE' });
+                                if (contact?.id) {
+                                  loadFollowUps();
+                                }
+                              } catch (e) {
+                                console.error('Failed to delete follow-up', e);
+                              }
+                            }}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="Delete Follow-Up"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
+                      <span className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold border ${
+                        fu.status === 'Sent'
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : fu.status === 'Failed'
+                          ? 'bg-red-50 text-red-700 border-red-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      }`}>
+                        {fu.status === 'Sent' ? '✓ Sent' : fu.status === 'Failed' ? '✕ Failed' : '⏳ Scheduled'}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-700 leading-snug break-words">
+                    {fu.message}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Salesforce CRM / SFMC Intelligence Widget */}
         {isSalesCloud ? (
           /* ─── Sales Cloud Workspace View ─── */
@@ -482,32 +610,6 @@ export default function CrmIntelligencePanel({ contact, onClose, onUpdateContact
             </div>
           </div>
         )}
-
-        {/* AI Assistant Widget */}
-        <div className="bg-gradient-to-br from-[#F3ECFF] to-[#ECE4FF] border border-purple-200/80 rounded-2xl p-4 space-y-2 shadow-xs relative overflow-hidden group cursor-pointer hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-purple-900 font-extrabold text-xs">
-              <div className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center shadow-xs">
-                <Sparkles size={14} />
-              </div>
-              <span>AI Assistant</span>
-            </div>
-            <ChevronRight size={16} className="text-purple-600 group-hover:translate-x-1 transition-transform" />
-          </div>
-
-          <p className="text-[11px] text-purple-800 font-medium leading-relaxed">
-            Get AI-powered insights, draft replies, and create CRM records instantly for {contact.name}.
-          </p>
-
-          <div className="grid grid-cols-2 gap-1.5 pt-1">
-            <button className="px-2.5 py-1.5 rounded-xl bg-white/80 hover:bg-white text-purple-900 text-[10px] font-extrabold border border-purple-200/60 shadow-2xs text-left truncate">
-              ✨ Summarize Chat
-            </button>
-            <button className="px-2.5 py-1.5 rounded-xl bg-white/80 hover:bg-white text-purple-900 text-[10px] font-extrabold border border-purple-200/60 shadow-2xs text-left truncate">
-              ⚡ Generate Reply
-            </button>
-          </div>
-        </div>
 
       </div>
     </aside>

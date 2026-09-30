@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ChevronLeft, MoreVertical, Search, Paperclip, Mic, Phone, Video, X, Info, Reply, Copy, Forward, Pin, Star, Trash2, Smile, Cloud, Zap, Loader2, Check, Download, Tag, Plus, ShieldCheck, List } from 'lucide-react';
+import { Send, ChevronLeft, MoreVertical, Search, Paperclip, Mic, Phone, Video, X, Info, Reply, Copy, Forward, Pin, Star, Trash2, Smile, Cloud, Zap, Loader2, Check, Download, Tag, Plus, ShieldCheck, List, Calendar, Clock } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 import { Contact, Message, MessageStatus } from '@/types';
 import { useWorkspace } from '@/components/workspace/WorkspaceProvider';
@@ -128,6 +128,93 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       setConversationLabels(contact.id, activeLabels.filter(id => id !== labelId));
     } else {
       setConversationLabels(contact.id, [...activeLabels, labelId]);
+    }
+  };
+
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [editingFollowUpId, setEditingFollowUpId] = useState<string | null>(null);
+  const [followUpDate, setFollowUpDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  const [followUpTime, setFollowUpTime] = useState('10:00');
+  const [followUpMessage, setFollowUpMessage] = useState('');
+  const [isSubmittingFollowUp, setIsSubmittingFollowUp] = useState(false);
+  const [followUpToast, setFollowUpToast] = useState<{ show: boolean; msg: string }>({ show: false, msg: '' });
+
+  // Listen for edit request from CrmIntelligencePanel
+  useEffect(() => {
+    const handleEditEvent = (e: any) => {
+      const { followUp, contactId } = e.detail;
+      if (followUp && contactId === contact.id) {
+        setEditingFollowUpId(followUp.id);
+        setFollowUpDate(followUp.date);
+        setFollowUpTime(followUp.time);
+        setFollowUpMessage(followUp.message);
+        setShowFollowUpModal(true);
+      }
+    };
+    window.addEventListener('wz_followup_edit', handleEditEvent);
+    return () => window.removeEventListener('wz_followup_edit', handleEditEvent);
+  }, [contact.id]);
+
+  const handleScheduleFollowUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!followUpDate || !followUpTime || !followUpMessage.trim()) {
+      alert('Please fill out Date, Time, and Message fields.');
+      return;
+    }
+
+    try {
+      setIsSubmittingFollowUp(true);
+      
+      const payload = {
+        id: editingFollowUpId, // Used only for PUT
+        tenantId: 'tenant-1',
+        workspaceId: state.activeWorkspaceId || 'salescloud-ws-1',
+        workspaceType: state.workspaces.find(w => w.id === state.activeWorkspaceId)?.type || 'salescloud',
+        contactId: contact.id,
+        contactName: contact.name,
+        contactPhone: contact.phoneNumber,
+        date: followUpDate,
+        time: followUpTime,
+        message: followUpMessage.trim()
+      };
+
+      const res = await fetch('/api/followup', {
+        method: editingFollowUpId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to schedule follow up');
+      }
+
+      // We don't send an immediate chat message for scheduling anymore.
+      // The message will be sent natively into the chat by the backend 
+      // automatically when the scheduled time arrives.
+
+      // Dispatch event so right panel updates immediately from Salesforce
+      window.dispatchEvent(new CustomEvent('wz_followup_updated', { detail: { contactId: contact.id, source: 'scheduler' } }));
+
+      setFollowUpToast({
+        show: true,
+        msg: `Follow-up ${editingFollowUpId ? 'updated' : 'scheduled'} for ${new Date(`${followUpDate}T${followUpTime}`).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`
+      });
+
+      setShowFollowUpModal(false);
+      setEditingFollowUpId(null);
+      setFollowUpMessage('');
+      setTimeout(() => {
+        setFollowUpToast({ show: false, msg: '' });
+      }, 4000);
+    } catch (err: any) {
+      console.error('Follow-up error:', err);
+      alert(err.message || 'Failed to schedule follow up.');
+    } finally {
+      setIsSubmittingFollowUp(false);
     }
   };
 
@@ -429,6 +516,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
 
         <div className="flex items-center gap-0.5">
+          {/* Follow Up Button - On left side of Video Call */}
+          <motion.button
+            onClick={() => setShowFollowUpModal(true)}
+            whileHover={{ scale: 1.05, y: -1 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex items-center gap-1.5 px-3 py-1.5 mr-1.5 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100 hover:from-emerald-100 hover:to-teal-100 text-[#128C7E] font-bold text-xs transition-all border border-emerald-300 shadow-2xs cursor-pointer"
+            title="Schedule Follow Up"
+          >
+            <Calendar size={14} className="text-[#128C7E]" />
+            <span>Follow Up</span>
+          </motion.button>
+
           <motion.button
             onClick={() => handleInitiateCall('video')}
             whileHover={{ scale: 1.1 }}
@@ -992,6 +1091,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       )}
 
       {/* ═══ INPUT BAR ═══ */}
+      {contact.whatsappStatus === 'Unsubscribed' ? (
+        <div className="px-4 py-4 bg-red-50 border-t border-red-100 flex items-center justify-center z-20 shrink-0 relative">
+          <div className="flex items-center gap-2 text-red-600 bg-red-100/50 px-4 py-2 rounded-lg font-medium text-sm">
+            <X size={18} />
+            This contact has unsubscribed from WhatsApp messages. Outbound messaging is disabled.
+          </div>
+        </div>
+      ) : (
       <div className="px-4 py-3 bg-white/80 backdrop-blur-xl border-t border-gray-200/80 flex items-end gap-2.5 z-20 shrink-0 relative">
 
         {/* Emoji Picker */}
@@ -1060,7 +1167,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           {newMessage.trim() || isUploading ? <Send size={18} className="ml-0.5" /> : <Mic size={20} />}
         </motion.button>
       </div>
-
+      )}
       {/* Media Preview Composer */}
       {previewFile && (
         <MediaPreviewModal 
@@ -1097,6 +1204,148 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ FOLLOW UP POP UP WINDOW MODAL ═══ */}
+      <AnimatePresence>
+        {showFollowUpModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: 'spring', duration: 0.3 }}
+              className="bg-white rounded-2xl shadow-2xl border border-gray-100 max-w-md w-full overflow-hidden z-50"
+            >
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-[#128C7E] to-[#25D366] px-6 py-4 text-white flex items-center justify-between shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-md shadow-inner">
+                    <Calendar size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base text-white leading-tight">
+                      {editingFollowUpId ? 'Edit Follow Up' : 'Schedule Follow Up'}
+                    </h3>
+                    <p className="text-xs text-emerald-100 font-medium mt-0.5">Contact: {contact.name}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowFollowUpModal(false);
+                    setEditingFollowUpId(null);
+                    setFollowUpMessage('');
+                  }}
+                  className="p-1.5 rounded-lg hover:bg-white/20 transition-colors text-white/90 hover:text-white cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Form Body - 3 Required Fields: Date, Time, Message */}
+              <form onSubmit={handleScheduleFollowUp} className="p-6 space-y-4">
+                {/* Field 1: Date */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <Calendar size={13} className="text-[#128C7E]" />
+                    Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={followUpDate}
+                    onChange={(e) => setFollowUpDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#128C7E] text-sm text-gray-800 font-medium outline-none transition-all shadow-2xs"
+                  />
+                </div>
+
+                {/* Field 2: Time */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <Clock size={13} className="text-[#128C7E]" />
+                    Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={followUpTime}
+                    onChange={(e) => setFollowUpTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#128C7E] text-sm text-gray-800 font-medium outline-none transition-all shadow-2xs"
+                  />
+                </div>
+
+                {/* Field 3: Message */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <Info size={13} className="text-[#128C7E]" />
+                    Message <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={followUpMessage}
+                    onChange={(e) => setFollowUpMessage(e.target.value)}
+                    placeholder="Type your follow up notes or reminder message here..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#128C7E] text-sm text-gray-800 font-medium outline-none transition-all shadow-2xs resize-none"
+                  />
+                </div>
+
+                {/* Footer Action Buttons */}
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFollowUpModal(false);
+                      setEditingFollowUpId(null);
+                      setFollowUpMessage('');
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingFollowUp}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#128C7E] to-[#25D366] text-white font-bold text-xs shadow-md hover:shadow-lg hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSubmittingFollowUp ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check size={14} />
+                        <span>{editingFollowUpId ? 'Update Follow Up' : 'Schedule Follow Up'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Follow Up Toast Notification */}
+      <AnimatePresence>
+        {followUpToast.show && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            className="fixed bottom-6 right-6 z-[120] bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-emerald-500/40"
+          >
+            <div className="w-8 h-8 rounded-xl bg-[#25D366] flex items-center justify-center text-white shadow-sm">
+              <Check size={18} strokeWidth={3} />
+            </div>
+            <div>
+              <p className="text-xs font-extrabold text-white">Success!</p>
+              <p className="text-[11px] font-medium text-slate-300">{followUpToast.msg}</p>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
