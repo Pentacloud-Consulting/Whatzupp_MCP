@@ -38,6 +38,7 @@ export interface WorkspaceContact {
   avatar?: string;
   createdAt: string;   // ISO date string
   primaryAssigneeId?: string;
+  whatsappStatus?: 'Subscribed' | 'Unsubscribed';
   ownerUserId?: string;
   createdByUserId?: string;
   ownerName?: string;
