@@ -48,6 +48,7 @@ export interface WorkspaceContact {
   originalAssigneeId?: string;
   isCovered?: boolean;
   coverageEndTime?: string;
+  leadScore?: number;
 }
 
 export interface FastReplyTemplate {

@@ -22,6 +22,7 @@ export interface Contact {
     originalAssigneeId?: string;
     coverageEndTime?: string;
     whatsappStatus?: 'Subscribed' | 'Unsubscribed';
+    leadScore?: number;
   }
   
   // Different statuses a message can have
@@ -171,6 +172,7 @@ export interface Contact {
     originalAssigneeId?: string;
     coverageEndTime?: string;
     whatsappStatus?: 'Subscribed' | 'Unsubscribed';
+    leadScore?: number;
   }
   
   

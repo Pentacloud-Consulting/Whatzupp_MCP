@@ -83,13 +83,13 @@ export class SalesCloudConnector implements Connector {
       }
 
       // Query Leads from Salesforce (all Leads in org, ordered by newest first)
-      let leadSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c, WhatsApp_Status__c FROM Lead ORDER BY CreatedDate DESC LIMIT ${limit}`;
+      let leadSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c, WhatsApp_Status__c, Lead_Score__c FROM Lead ORDER BY CreatedDate DESC LIMIT ${limit}`;
       // Query Contacts from Salesforce (ONLY those created/synced via WhatZupp, ignoring standard sample contacts)
       let contactSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c, WhatsApp_Status__c FROM Contact WHERE WhatZupp_Sync_Status__c != null ORDER BY LastModifiedDate DESC LIMIT ${limit}`;
 
       if (params.search) {
         const q = params.search.replace(/'/g, "\\'");
-        leadSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c, WhatsApp_Status__c FROM Lead WHERE (Name LIKE '%${q}%' OR Phone LIKE '%${q}%' OR MobilePhone LIKE '%${q}%' OR Email LIKE '%${q}%' OR Company LIKE '%${q}%') ORDER BY CreatedDate DESC LIMIT ${limit}`;
+        leadSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c, WhatsApp_Status__c, Lead_Score__c FROM Lead WHERE (Name LIKE '%${q}%' OR Phone LIKE '%${q}%' OR MobilePhone LIKE '%${q}%' OR Email LIKE '%${q}%' OR Company LIKE '%${q}%') ORDER BY CreatedDate DESC LIMIT ${limit}`;
         contactSoql = `SELECT Id, Name, Phone, MobilePhone, Email, Company, WhatZupp_Sync_Status__c, WhatZupp_Last_Synced__c, WhatZupp_Labels__c, WhatZupp_Assignee__c, WhatsApp_Status__c FROM Contact WHERE WhatZupp_Sync_Status__c != null AND (Name LIKE '%${q}%' OR Phone LIKE '%${q}%' OR MobilePhone LIKE '%${q}%' OR Email LIKE '%${q}%') ORDER BY LastModifiedDate DESC LIMIT ${limit}`;
       }
 
@@ -131,6 +131,7 @@ export class SalesCloudConnector implements Connector {
             primaryAssigneeId: r.WhatZupp_Assignee__c || undefined,
             ownerUserId: r.WhatZupp_Assignee__c || undefined,
             whatsappStatus: r.WhatsApp_Status__c || 'Subscribed',
+            leadScore: r.Lead_Score__c,
           });
         });
       }
@@ -1124,7 +1125,7 @@ export class SalesCloudConnector implements Connector {
       }
 
       // 2. Query existing Lead next
-      const leadSoql = `SELECT Id, Name, Email, Phone, MobilePhone, WhatsApp_Status__c FROM Lead WHERE Phone = '${safePhone}' OR MobilePhone = '${safePhone}' OR Phone LIKE '%${last10}' OR MobilePhone LIKE '%${last10}' LIMIT 1`;
+      const leadSoql = `SELECT Id, Name, Email, Phone, MobilePhone, WhatsApp_Status__c, Lead_Score__c FROM Lead WHERE Phone = '${safePhone}' OR MobilePhone = '${safePhone}' OR Phone LIKE '%${last10}' OR MobilePhone LIKE '%${last10}' LIMIT 1`;
       const leadRecords = await this.execSoql(leadSoql);
 
       if (leadRecords.length > 0) {
@@ -1138,6 +1139,7 @@ export class SalesCloudConnector implements Connector {
           email: r.Email || '',
           lastSyncedAt: new Date().toISOString(),
           whatsappStatus: r.WhatsApp_Status__c || 'Subscribed',
+          leadScore: r.Lead_Score__c,
         };
       }
 
