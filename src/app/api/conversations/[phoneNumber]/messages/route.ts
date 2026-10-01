@@ -33,7 +33,10 @@ export async function GET(
     }
 
     const cleanPhone = rawPhone.replace(/[^0-9]/g, '').trim();
-    const page = await connector.fetchMessages({ phoneNumber: cleanPhone });
+    const page = await connector.fetchMessages({ 
+      phoneNumber: cleanPhone,
+      pageSize: 1000 
+    });
 
     const formattedMessages = page.messages
       .filter((m: any) => m.content && !m.content.includes('formatted phone') && !m.content.includes('Outbound from Sales Cloud'))
