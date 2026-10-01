@@ -87,11 +87,12 @@ export default function ContactsView() {
       .then(data => {
         if (data.contacts && Array.isArray(data.contacts)) {
           const formatted: WorkspaceContact[] = data.contacts.map((c: any) => ({
+            ...c,
             id: c.id || c.salesforceRecordId || c.phoneNumber,
             name: c.name,
             phoneNumber: c.phoneNumber,
             email: c.email || '',
-            tags: c.salesforceObjectType ? [c.salesforceObjectType] : wsId === 'sfmc-ws-1' ? ['SFMC DE', 'VIP'] : ['Sales Cloud', 'Lead'],
+            tags: c.labels ? c.labels.split(',').map((t: string) => t.trim()).filter(Boolean) : (c.salesforceObjectType ? [c.salesforceObjectType] : wsId === 'sfmc-ws-1' ? ['SFMC DE', 'VIP'] : ['Sales Cloud', 'Lead']),
             workspaceId: wsId,
             createdAt: c.lastSyncedAt || new Date().toISOString(),
             primaryAssigneeId: c.primaryAssigneeId,

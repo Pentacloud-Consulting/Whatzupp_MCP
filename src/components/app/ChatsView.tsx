@@ -203,11 +203,13 @@ export default function ChatsView() {
       .then(data => {
         if (data.contacts && Array.isArray(data.contacts)) {
           const wsContacts: Contact[] = data.contacts.map((c: any) => ({
+            ...c,
             id: c.id || c.sourceRecordId || c.phoneNumber,
             name: c.name || c.phoneNumber,
             phoneNumber: normalizePhone(c.phoneNumber),
             online: undefined,
             whatsappStatus: c.whatsappStatus,
+            tags: c.labels ? c.labels.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
           }));
           setAllBackendContacts(wsContacts);
 
