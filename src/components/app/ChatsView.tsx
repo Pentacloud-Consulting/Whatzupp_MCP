@@ -69,8 +69,10 @@ export default function ChatsView() {
           );
 
           return {
+            ...backendMatch,
+            ...wc,
             id: backendMatch?.id || wc.id,
-            name: wc.name, 
+            name: wc.name || backendMatch?.name, 
             phoneNumber: normPhone,
             avatar: wc.avatar || backendMatch?.avatar,
             online: undefined,
@@ -79,6 +81,7 @@ export default function ChatsView() {
             originalAssigneeId: wc.originalAssigneeId,
             coverageEndTime: wc.coverageEndTime,
             whatsappStatus: backendMatch?.whatsappStatus || wc.whatsappStatus,
+            leadScore: backendMatch?.leadScore ?? (backendMatch as any)?.score ?? (wc as any)?.leadScore ?? (wc as any)?.score,
           } as Contact;
         });
       }
@@ -86,6 +89,25 @@ export default function ChatsView() {
 
     return allBackendContacts;
   }, [workspaceContacts, allBackendContacts, activeWorkspace?.id]);
+
+  // Keep selectedContact in sync with updated filteredContacts (e.g. when backend contacts finish fetching)
+  useEffect(() => {
+    if (selectedContact) {
+      const normPhone = normalizePhone(selectedContact.phoneNumber);
+      const updated = filteredContacts.find(c => normalizePhone(c.phoneNumber) === normPhone);
+      if (updated) {
+        if (
+          updated.leadScore !== selectedContact.leadScore ||
+          updated.whatsappStatus !== selectedContact.whatsappStatus ||
+          updated.email !== selectedContact.email ||
+          updated.company !== selectedContact.company ||
+          updated.salesforceObjectType !== selectedContact.salesforceObjectType
+        ) {
+          setSelectedContact(updated);
+        }
+      }
+    }
+  }, [filteredContacts, selectedContact]);
 
   // Removed forced auto-select so users can see the default workspace view
 

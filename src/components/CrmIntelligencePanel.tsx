@@ -378,18 +378,18 @@ export default function CrmIntelligencePanel({ contact, onClose, onUpdateContact
                 <span className="font-bold text-slate-900">{displayLocation}</span>
               </div>
 
-              {contact.leadScore !== undefined && contact.leadScore !== null && (
+              {(contact.leadScore !== undefined && contact.leadScore !== null) || ((contact as any).score !== undefined && (contact as any).score !== null) ? (
                 <div className="flex items-center justify-between py-1 border-b border-slate-100">
                   <span className="text-slate-500 font-semibold flex items-center gap-1">
                     <Zap size={13} className="text-amber-500 fill-amber-500" /> Lead Score
                   </span>
                   <span className="font-bold text-slate-900">
-                    <span className="bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-md border border-amber-200">
-                      {contact.leadScore}
+                    <span className="bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-md border border-amber-200 font-mono">
+                      {contact.leadScore ?? (contact as any).score}
                     </span>
                   </span>
                 </div>
-              )}
+              ) : null}
 
               <div className="flex items-center justify-between pt-1">
                 <span className="text-slate-500 font-semibold">Tags</span>
