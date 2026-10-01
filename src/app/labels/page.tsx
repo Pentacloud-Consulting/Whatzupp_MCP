@@ -1,15 +1,15 @@
 'use client';
 
-// src/app/dashboard/page.tsx
-// Dashboard route — renders AppShell with initialScreen="dashboard"
+// src/app/labels/page.tsx
+// Labels route — renders AppShell with initialScreen="labels"
 
 import React from 'react';
 import { WorkspaceProvider } from '@/components/workspace/WorkspaceProvider';
 import AppShell from '@/components/app/AppShell';
 
-export default function DashboardPage() {
+export default function LabelsPage() {
   return (
-    <WorkspaceProvider initialScreen="dashboard">
+    <WorkspaceProvider initialScreen="labels">
       <AppShell />
     </WorkspaceProvider>
   );

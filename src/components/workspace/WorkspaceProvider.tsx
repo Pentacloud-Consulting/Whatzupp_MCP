@@ -109,9 +109,49 @@ const DEFAULT_STATE: AppState = {
   activeListId: null,
 };
 
-export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
+const VALID_SCREENS: AppScreen[] = [
+  'onboarding-profile', 'onboarding-workspace', 'dashboard', 'chats', 'contacts',
+  'templates', 'broadcasts', 'automation', 'analytics', 'sfmc', 'salescloud',
+  'settings', 'fast-reply', 'labels', 'lists', 'calls', 'users', 'coverage', 'conversation-flows'
+];
+
+interface WorkspaceProviderProps {
+  children: React.ReactNode;
+  initialScreen?: AppScreen;
+}
+
+export function WorkspaceProvider({ children, initialScreen }: WorkspaceProviderProps) {
   const [state, setState] = useState<AppState>(DEFAULT_STATE);
   const [isReady, setIsReady] = useState(false);
+
+  // Sync activeScreen with URL or initialScreen prop on client mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const rawPath = window.location.pathname.replace(/^\//, '').toLowerCase();
+    const urlScreen = VALID_SCREENS.find(s => s === rawPath);
+    const screenToSet = urlScreen || initialScreen;
+
+    if (screenToSet) {
+      setState(prev => ({ ...prev, activeScreen: screenToSet }));
+      localStorage.setItem('wz_active_screen', screenToSet);
+    }
+  }, [initialScreen]);
+
+  // Handle browser back / forward buttons (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const rawPath = window.location.pathname.replace(/^\//, '').toLowerCase();
+      const urlScreen = VALID_SCREENS.find(s => s === rawPath);
+      if (urlScreen) {
+        setState(prev => ({ ...prev, activeScreen: urlScreen }));
+        localStorage.setItem('wz_active_screen', urlScreen);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Restore saved localStorage state on client mount
   useEffect(() => {
@@ -133,7 +173,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           const activeWorkspaceId = (savedWsId && workspaces.some(w => w.id === savedWsId))
             ? savedWsId
             : (workspaces[0]?.id || 'salescloud-ws-1');
-          const activeScreen = savedScreen || prev.activeScreen;
+
+          const rawPath = typeof window !== 'undefined' ? window.location.pathname.replace(/^\//, '').toLowerCase() : '';
+          const urlScreen = VALID_SCREENS.find(s => s === rawPath);
+          const activeScreen = urlScreen || initialScreen || savedScreen || prev.activeScreen;
           
           let parsedChatLabels = prev.chatLabels;
           if (cachedChatLabels) {
@@ -162,7 +205,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch (e) {}
-  }, []);
+  }, [initialScreen]);
 
   // Sync data from backend on mount
   useEffect(() => {
@@ -396,6 +439,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const setActiveScreen = useCallback((screen: AppScreen) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('wz_active_screen', screen);
+      const targetPath = `/${screen}`;
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState(null, '', targetPath);
+      }
     }
     setState(prev => ({ ...prev, activeScreen: screen }));
   }, []);

@@ -1,15 +1,15 @@
 'use client';
 
-// src/app/dashboard/page.tsx
-// Dashboard route — renders AppShell with initialScreen="dashboard"
+// src/app/fast-reply/page.tsx
+// Fast Reply route — renders AppShell with initialScreen="fast-reply"
 
 import React from 'react';
 import { WorkspaceProvider } from '@/components/workspace/WorkspaceProvider';
 import AppShell from '@/components/app/AppShell';
 
-export default function DashboardPage() {
+export default function FastReplyPage() {
   return (
-    <WorkspaceProvider initialScreen="dashboard">
+    <WorkspaceProvider initialScreen="fast-reply">
       <AppShell />
     </WorkspaceProvider>
   );

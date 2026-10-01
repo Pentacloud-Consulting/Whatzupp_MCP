@@ -1,15 +1,15 @@
 'use client';
 
-// src/app/dashboard/page.tsx
-// Dashboard route — renders AppShell with initialScreen="dashboard"
+// src/app/coverage/page.tsx
+// Coverage route — renders AppShell with initialScreen="coverage"
 
 import React from 'react';
 import { WorkspaceProvider } from '@/components/workspace/WorkspaceProvider';
 import AppShell from '@/components/app/AppShell';
 
-export default function DashboardPage() {
+export default function CoveragePage() {
   return (
-    <WorkspaceProvider initialScreen="dashboard">
+    <WorkspaceProvider initialScreen="coverage">
       <AppShell />
     </WorkspaceProvider>
   );

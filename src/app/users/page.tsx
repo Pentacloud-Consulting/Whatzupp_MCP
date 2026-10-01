@@ -1,15 +1,15 @@
 'use client';
 
-// src/app/dashboard/page.tsx
-// Dashboard route — renders AppShell with initialScreen="dashboard"
+// src/app/users/page.tsx
+// Users & Teams route — renders AppShell with initialScreen="users"
 
 import React from 'react';
 import { WorkspaceProvider } from '@/components/workspace/WorkspaceProvider';
 import AppShell from '@/components/app/AppShell';
 
-export default function DashboardPage() {
+export default function UsersPage() {
   return (
-    <WorkspaceProvider initialScreen="dashboard">
+    <WorkspaceProvider initialScreen="users">
       <AppShell />
     </WorkspaceProvider>
   );
