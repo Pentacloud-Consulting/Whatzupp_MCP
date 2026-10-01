@@ -142,6 +142,53 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   const [isSubmittingFollowUp, setIsSubmittingFollowUp] = useState(false);
   const [followUpToast, setFollowUpToast] = useState<{ show: boolean; msg: string }>({ show: false, msg: '' });
 
+  // ─── Salesforce Big Objects Chat History Archival State ───
+  const [isFetchingArchived, setIsFetchingArchived] = useState(false);
+  const [archivedMessagesList, setArchivedMessagesList] = useState<Message[]>([]);
+  const [hasLoadedArchived, setHasLoadedArchived] = useState(false);
+
+  useEffect(() => {
+    setArchivedMessagesList([]);
+    setHasLoadedArchived(false);
+    setIsFetchingArchived(false);
+  }, [contact.id]);
+
+  const handleFetchHistoricalMessages = async () => {
+    if (isFetchingArchived) return;
+    setIsFetchingArchived(true);
+    try {
+      const wsId = state.activeWorkspaceId || 'salescloud-ws-1';
+      const wsKey = process.env.NEXT_PUBLIC_WORKSPACE_SALESCLOUD_API_KEY || 'salescloud-ws-key-secret';
+      const cleanPhone = contact.phoneNumber.replace(/[^0-9]/g, '');
+
+      const res = await fetch(`/api/workspaces/${wsId}/messages/archived?phone=${cleanPhone}`, {
+        headers: { 'X-Workspace-Key': wsKey }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.archivedMessages && Array.isArray(data.archivedMessages)) {
+          const mapped: Message[] = data.archivedMessages.map((m: any) => ({
+            id: m.id || `archived-${Date.now()}-${Math.random()}`,
+            content: m.content || '',
+            timestamp: m.timestamp || new Date().toISOString(),
+            sender: m.direction === 'INBOUND' ? 'contact' : 'user',
+            status: m.status === 'READ' ? MessageStatus.READ : MessageStatus.SENT,
+            recipientId: m.recipientId || cleanPhone,
+            attachments: false,
+            isArchived: true,
+          }));
+          setArchivedMessagesList(mapped);
+          setHasLoadedArchived(true);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch historical archived messages:', err);
+    } finally {
+      setIsFetchingArchived(false);
+    }
+  };
+
   // Listen for edit request from CrmIntelligencePanel
   useEffect(() => {
     const handleEditEvent = (e: any) => {
@@ -431,7 +478,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const visibleMessages = (() => {
     const seen = new Set<string>();
-    return messages.filter(m => {
+    const combined = [...archivedMessagesList, ...messages];
+    return combined.filter(m => {
       if (localMods[m.id]?.deleted) return false;
       if (seen.has(m.id)) return false;
       seen.add(m.id);
@@ -516,6 +564,27 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
 
         <div className="flex items-center gap-0.5">
+          {/* Historical Messages Button (Salesforce Big Objects Archival) */}
+          <motion.button
+            onClick={handleFetchHistoricalMessages}
+            disabled={isFetchingArchived}
+            whileHover={{ scale: 1.05, y: -1 }}
+            whileTap={{ scale: 0.95 }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 mr-1.5 rounded-xl font-bold text-xs transition-all border shadow-2xs cursor-pointer disabled:opacity-60 ${
+              hasLoadedArchived
+                ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                : 'bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 hover:from-amber-100 hover:to-orange-100 text-amber-800 border-amber-300'
+            }`}
+            title="Retrieve 15+ days old archived chat history from Salesforce Big Objects"
+          >
+            {isFetchingArchived ? (
+              <Loader2 size={14} className="animate-spin text-amber-700" />
+            ) : (
+              <Clock size={14} className="text-amber-700" />
+            )}
+            <span>{hasLoadedArchived ? `Historical (${archivedMessagesList.length})` : 'Historical Messages'}</span>
+          </motion.button>
+
           {/* Follow Up Button - On left side of Video Call */}
           <motion.button
             onClick={() => setShowFollowUpModal(true)}
@@ -709,7 +778,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             </div>
           </div>
         ) : (
-          Object.entries(groupedMessages).map(([date, dateMessages]) => (
+          <>
+            {hasLoadedArchived && (
+              <div className="flex justify-center my-4">
+                <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50/90 backdrop-blur-xs border border-amber-200 text-amber-800 text-[11px] font-extrabold shadow-2xs">
+                  <ShieldCheck size={13} className="text-amber-600" />
+                  <span>📜 Historical Messages retrieved from Salesforce Big Object Archive (WhatZupp_Chat_Archive__b)</span>
+                </div>
+              </div>
+            )}
+
+            {Object.entries(groupedMessages).map(([date, dateMessages]) => (
             <div key={date}>
               {/* Date Separator */}
               <div className="flex justify-center my-5">
@@ -1013,8 +1092,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                 );
               })}
             </div>
-          ))
-        )}
+          ))}
+        </>
+      )}
         <div ref={messagesEndRef} className="h-6" />
       </div>
 

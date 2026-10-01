@@ -8,6 +8,8 @@ export interface WorkspaceMessage {
   direction: 'INBOUND' | 'OUTBOUND';
   mediaUrl?: string;
   salesforceRecordId?: string;
+  isArchived?: boolean;
+  archivedAt?: string;
 }
 
 export interface MessagePage {
@@ -147,6 +149,12 @@ export interface Connector {
     cursor?: string;
     pageSize?: number;
   }): Promise<MessagePage>;
+
+  fetchArchivedMessages?(params: {
+    phoneNumber: string;
+    workspaceId?: string;
+    limit?: number;
+  }): Promise<WorkspaceMessage[]>;
 
   // Coverage Management
   supportsCoverage?: boolean;
