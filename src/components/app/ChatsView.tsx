@@ -194,7 +194,8 @@ export default function ChatsView() {
     setMessages({});
 
     fetch(`/api/workspaces/${wsId}/contacts`, {
-      headers: { 'X-Workspace-Key': wsKey }
+      headers: { 'X-Workspace-Key': wsKey },
+      cache: 'no-store'
     })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP error ${res.status}`);
