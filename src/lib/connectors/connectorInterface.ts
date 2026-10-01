@@ -30,6 +30,7 @@ export interface WorkspaceContactResult {
   primaryAssigneeId?: string;
   createdByUserId?: string;
   teamId?: string;
+  leadScore?: number;
 }
 
 export interface ContactAssignment {
