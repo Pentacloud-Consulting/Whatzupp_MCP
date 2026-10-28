@@ -89,10 +89,14 @@ export async function deleteSessionCookie() {
   cookieStore.delete(SESSION_COOKIE);
 }
 
-// ─── Middleware Helper (uses request instead of cookies()) ───
-
 export async function getSessionFromRequest(request: NextRequest): Promise<SessionPayload | null> {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  let token = request.cookies.get(SESSION_COOKIE)?.value;
+  if (!token) {
+    const authHeader = request.headers.get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+  }
   if (!token) return null;
   return verifySessionToken(token);
 }

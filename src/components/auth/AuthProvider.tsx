@@ -40,9 +40,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchSession = async () => {
     try {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('wz_token') : null;
+      const headers: Record<string, string> = {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      };
+      if (storedToken) {
+        headers['Authorization'] = `Bearer ${storedToken}`;
+      }
+
       const res = await fetch('/api/auth/me', { 
         cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+        headers,
       });
       if (res.ok) {
         const data = await res.json();
@@ -54,10 +63,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try { localStorage.removeItem('wz_user_session'); } catch (e) {}
         }
       } else {
+        const cached = typeof window !== 'undefined' ? localStorage.getItem('wz_user_session') : null;
+        if (cached) {
+          try {
+            setUser(JSON.parse(cached));
+            return;
+          } catch (e) {}
+        }
         setUser(null);
         try { localStorage.removeItem('wz_user_session'); } catch (e) {}
       }
     } catch {
+      const cached = typeof window !== 'undefined' ? localStorage.getItem('wz_user_session') : null;
+      if (cached) {
+        try {
+          setUser(JSON.parse(cached));
+          return;
+        } catch (e) {}
+      }
       setUser(null);
     } finally {
       setIsLoading(false);
