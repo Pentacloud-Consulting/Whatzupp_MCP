@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40" fill="none">
+  <rect x="4" y="9" width="10" height="22" rx="2.5" fill="#E42528"/>
+  <rect x="17" y="9" width="10" height="22" rx="2.5" fill="#008343"/>
+  <rect x="30" y="9" width="10" height="22" rx="2.5" fill="#0072BC"/>
+  <rect x="43" y="9" width="10" height="22" rx="2.5" fill="#F8A51D"/>
+  <text x="60" y="26" font-family="'Inter', -apple-system, sans-serif" font-size="18" font-weight="800" fill="#000000" letter-spacing="-0.5">ZOHO</text>
+</svg>

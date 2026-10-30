@@ -99,9 +99,14 @@ public with sharing class WhatzuppChatController {
             }
         }
 
-        query += ') ORDER BY Timestamp__c ASC NULLS LAST LIMIT 200';
+        query += ') ORDER BY Timestamp__c DESC NULLS LAST LIMIT 200';
 
-        return Database.query(query);
+        List<WhatsApp_Message__c> msgs = Database.query(query);
+        List<WhatsApp_Message__c> reversed = new List<WhatsApp_Message__c>();
+        for (Integer i = msgs.size() - 1; i >= 0; i--) {
+            reversed.add(msgs[i]);
+        }
+        return reversed;
     }
 
     /**
@@ -120,7 +125,7 @@ public with sharing class WhatzuppChatController {
         String cleanPhone = phone.replaceAll('[^0-9]', '');
         String last10 = cleanPhone.length() >= 10 ? '%' + cleanPhone.substring(cleanPhone.length() - 10) : '%' + cleanPhone;
 
-        return [
+        List<WhatsApp_Message__c> msgs = [
             SELECT Id, Name, Message_Id__c, Phone__c, Content__c, Direction__c,
                    Status__c, Timestamp__c, Lead__c, Contact__c, Account__c,
                    Media_Type__c, ContentVersionId__c, ContentDocumentId__c, MetaMediaId__c
@@ -128,9 +133,14 @@ public with sharing class WhatzuppChatController {
             WHERE Phone__c = :cleanPhone
                OR Phone__c = :phone
                OR Phone__c LIKE :last10
-            ORDER BY Timestamp__c ASC NULLS LAST
+            ORDER BY Timestamp__c DESC NULLS LAST
             LIMIT 200
         ];
+        List<WhatsApp_Message__c> reversed = new List<WhatsApp_Message__c>();
+        for (Integer i = msgs.size() - 1; i >= 0; i--) {
+            reversed.add(msgs[i]);
+        }
+        return reversed;
     }
 
     /**

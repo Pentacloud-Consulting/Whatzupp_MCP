@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 40" fill="none">
+  <circle cx="18" cy="20" r="14" fill="#F22F46"/>
+  <circle cx="14" cy="16" r="2.8" fill="#FFFFFF"/>
+  <circle cx="22" cy="16" r="2.8" fill="#FFFFFF"/>
+  <circle cx="14" cy="24" r="2.8" fill="#FFFFFF"/>
+  <circle cx="22" cy="24" r="2.8" fill="#FFFFFF"/>
+  <text x="38" y="26" font-family="'Inter', -apple-system, sans-serif" font-size="18" font-weight="800" fill="#1F2A37" letter-spacing="-0.5">twilio</text>
+</svg>

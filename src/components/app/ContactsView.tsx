@@ -196,10 +196,20 @@ export default function ContactsView() {
     }
   };
 
-  // Tag options
-  const allTags = Array.from(
-    new Set(displayContacts.flatMap(c => c.tags))
-  );
+  // Tag options - Safely extract and deduplicate only non-empty string tags
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    displayContacts.forEach(c => {
+      if (Array.isArray(c?.tags)) {
+        c.tags.forEach(t => {
+          if (typeof t === 'string' && t.trim().length > 0) {
+            tagSet.add(t.trim());
+          }
+        });
+      }
+    });
+    return Array.from(tagSet);
+  }, [displayContacts]);
 
   const filtered = displayContacts.filter(c => {
     // 1. Ownership visibility rules
@@ -225,7 +235,7 @@ export default function ContactsView() {
       (c.email && c.email.toLowerCase().includes(search.toLowerCase())) ||
       (c.company && c.company.toLowerCase().includes(search.toLowerCase()));
 
-    const matchesTag = selectedTag === 'all' || c.tags.includes(selectedTag);
+    const matchesTag = selectedTag === 'all' || (Array.isArray(c.tags) && c.tags.some(t => typeof t === 'string' && t.trim() === selectedTag));
 
     return matchesSearch && matchesTag;
   });
@@ -389,7 +399,7 @@ export default function ContactsView() {
 
               {allTags.map(tag => (
                 <button
-                  key={tag}
+                  key={`filter-tag-${tag}`}
                   onClick={() => setSelectedTag(tag)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
                     selectedTag === tag
@@ -608,20 +618,22 @@ export default function ContactsView() {
                   {/* Footer Row: Tags & Actions */}
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                     <div className="flex flex-wrap gap-1">
-                      {(contact.tags || []).map(tag => (
-                        <span
-                          key={tag}
-                          className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider border ${
-                            tag.toLowerCase().includes('vip')
-                              ? 'bg-rose-50 text-rose-700 border-rose-200'
-                              : tag.toLowerCase().includes('sales')
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          }`}
-                        >
-                          {tag}
-                        </span>
-                      ))}
+                      {(Array.isArray(contact.tags) ? contact.tags : [])
+                        .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+                        .map((tag, tIdx) => (
+                          <span
+                            key={`${contact.id}-tag-${tag}-${tIdx}`}
+                            className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider border ${
+                              tag.toLowerCase().includes('vip')
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : tag.toLowerCase().includes('sales')
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}
+                          >
+                            {tag}
+                          </span>
+                        ))}
                     </div>
 
                     {/* Action Icon Buttons */}
@@ -784,11 +796,13 @@ export default function ContactsView() {
                       {/* Tags */}
                       <td className="py-3 px-4">
                         <div className="flex gap-1 flex-wrap">
-                          {(contact.tags || []).map(t => (
-                            <span key={t} className="px-2 py-0.5 rounded bg-emerald-50 text-[#00C853] font-bold text-[10px] border border-emerald-200/60">
-                              {t}
-                            </span>
-                          ))}
+                          {(Array.isArray(contact.tags) ? contact.tags : [])
+                            .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+                            .map((t, tIdx) => (
+                              <span key={`${contact.id}-table-tag-${t}-${tIdx}`} className="px-2 py-0.5 rounded bg-emerald-50 text-[#00C853] font-bold text-[10px] border border-emerald-200/60">
+                                {t}
+                              </span>
+                            ))}
                         </div>
                       </td>
 
