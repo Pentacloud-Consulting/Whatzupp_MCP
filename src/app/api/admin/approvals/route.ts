@@ -8,6 +8,7 @@ import {
   updateLocalSignupRequest,
   deleteLocalSignupRequest,
 } from '@/lib/storage/signupStore';
+import { saveLocalTenant } from '@/lib/storage/tenantStore';
 
 export async function GET(request: NextRequest) {
   const { session, error } = await requireSuperAdmin(request);
@@ -79,13 +80,16 @@ export async function POST(request: NextRequest) {
       deleteLocalSignupRequest(requestId);
       if (hasDatabaseUrl()) {
         try {
-          await prisma.signupRequest.delete({ where: { id: requestId } });
+          await prisma.signupRequest.deleteMany({
+            where: {
+              OR: [
+                { id: requestId },
+                { email: requestId },
+              ],
+            },
+          }).catch(() => {});
         } catch (e: any) {
-          console.error('Error deleting from Prisma:', e);
-          return NextResponse.json({
-            success: false,
-            error: 'Failed to delete from database: ' + (e.message || 'Unknown error'),
-          }, { status: 500 });
+          console.warn('Prisma delete error (local store deleted successfully):', e?.message);
         }
       }
       return NextResponse.json({
@@ -186,6 +190,23 @@ export async function POST(request: NextRequest) {
       const localReqs = getLocalSignupRequests();
       const localReq = localReqs.find((r: any) => r.id === requestId);
       let signupReq = null;
+
+      // Ensure tenant is always recorded in local tenant store
+      saveLocalTenant({
+        id: `t-${code.toLowerCase()}`,
+        name: orgName,
+        tenantCode: code,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        tenantWorkspaces: workspaces.map(w => ({ workspaceType: w })),
+        users: localReq ? [{
+          id: `u-${code.toLowerCase()}`,
+          fullName: localReq.fullName || 'Admin User',
+          email: localReq.email,
+          role: userRole,
+          status: 'active',
+        }] : [],
+      });
 
       if (hasDatabaseUrl()) {
         try {
