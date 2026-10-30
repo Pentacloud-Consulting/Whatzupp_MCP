@@ -10,9 +10,9 @@ import {
 
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState({
-    totalTenants: 2,
-    pendingApprovals: 2,
-    totalUsers: 4,
+    totalTenants: 0,
+    pendingApprovals: 0,
+    totalUsers: 0,
     activeProducts: 2,
   });
 
