@@ -154,6 +154,10 @@
     --slds-c-icon-color-foreground-default: #128c7e;
 }
 
+.brochure-btn:hover {
+    --slds-c-icon-color-foreground-default: #0070d2;
+}
+
 .input-row {
     display: flex;
     gap: 8px;

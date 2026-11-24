@@ -49,10 +49,10 @@ export async function getSalesCloudAccessToken(forceRefresh = false): Promise<{ 
         params.append('client_secret', clientSecret || '');
       }
 
-      // Try domain loginUrl first, then instanceUrl as fallback
+      // Try instanceUrl first for client_credentials (required for My Domain orgs), then loginUrl
       const tokenUrls = Array.from(new Set([
-        `${loginUrl}/services/oauth2/token`,
         `${instanceUrlOverride}/services/oauth2/token`,
+        `${loginUrl}/services/oauth2/token`,
         `https://login.salesforce.com/services/oauth2/token`
       ]));
 

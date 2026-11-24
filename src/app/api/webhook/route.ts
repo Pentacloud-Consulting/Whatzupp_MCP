@@ -596,9 +596,27 @@ export async function POST(request: Request) {
                         }
                       }
                     }
+
+                    // ---- Automated Brochure Request Detection & Auto-Reply ----
+                    const isBrochure = /\b(brochure|catalogue|catalog)\b/i.test(bodyText) && message.type === 'text';
+                    if (isBrochure) {
+                      console.log(`[webhook] Automated Brochure keyword detected from ${normalizedPhone}: "${contentText}". Triggering Pentacloud Brochure auto-send.`);
+                      try {
+                        const { sendPentacloudBrochure } = await import('@/lib/brochureService');
+                        await sendPentacloudBrochure({
+                          recipientPhone: normalizedPhone,
+                          leadId: contact?.salesforceObjectType === 'Lead' ? contact.salesforceRecordId : undefined,
+                          contactId: contact?.salesforceObjectType === 'Contact' ? contact.salesforceRecordId : undefined,
+                          senderName: 'Pentacloud Auto-Responder',
+                          caption: 'Hello! Here is the Pentacloud Consulting Brochure. Please feel free to reach out if you have any questions!',
+                        });
+                      } catch (brochureErr) {
+                        console.error('[webhook] Auto-send brochure failed:', brochureErr);
+                      }
+                    }
                   }
                 } catch (e) {
-                  console.error('[webhook] WhatsApp Status update failed:', e);
+                  console.error('[webhook] WhatsApp Status / Brochure trigger failed:', e);
                 }
               } catch (storeError) {
                 console.error("[webhook] Error processing message:", storeError);

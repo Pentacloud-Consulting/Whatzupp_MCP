@@ -434,6 +434,13 @@ export default class WhatzuppChatPanel extends NavigationMixin(LightningElement)
 
         const textToSend = this.newMessageText.trim();
         this.newMessageText = '';
+
+        // Auto-detect if agent typed 'Brochure' or 'Send brochure'
+        if (/^(send\s+)?brochure$/i.test(textToSend)) {
+            await this.handleSendBrochure();
+            return;
+        }
+
         this.isSending = true;
 
         // Optimistic UI: show message immediately
@@ -972,6 +979,80 @@ export default class WhatzuppChatPanel extends NavigationMixin(LightningElement)
             this.uploadFileName = '';
             const fileInput = this.template.querySelector('.file-input-hidden');
             if (fileInput) fileInput.value = '';
+        }
+    }
+
+    /**
+     * Sends the Pentacloud Brochure (PDF) to the WhatsApp recipient:
+     * 1. Calls /api/brochure/send to deliver PDF via Meta Graph API
+     * 2. Automatically checks Brochure_Downloaded__c = true on Lead in Salesforce
+     * 3. Displays document in the chat panel
+     */
+    async handleSendBrochure() {
+        if (!this.contactPhone) {
+            this.showToast('Error', 'No recipient phone number available.', 'error');
+            return;
+        }
+
+        this.isSending = true;
+        this.showToast('Sending Brochure', 'Sending Pentacloud Brochure (PDF) to WhatsApp...', 'info');
+
+        try {
+            const res = await fetch(`${this.appBaseUrl}/api/brochure/send`, {
+                method: 'POST',
+                headers: this._getHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({
+                    phone: this.contactPhone,
+                    recordId: this.recordId,
+                    objectType: this.objectApiName,
+                    senderName: 'Mohamed Waseem',
+                    caption: 'Hello! Here is the Pentacloud Consulting Brochure. Please feel free to reach out if you have any questions!'
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    this.showToast('Success', 'Pentacloud Brochure PDF sent successfully!', 'success');
+
+                    // Optimistic UI update
+                    const brochureMsg = {
+                        id: data.messageId || ('brochure-' + Date.now()),
+                        content: '[Media: document] Pentacloud_Brochure.pdf\nHello! Here is the Pentacloud Consulting Brochure.',
+                        displayContent: 'Pentacloud_Brochure.pdf',
+                        formattedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        timestamp: new Date().toISOString(),
+                        direction: 'OUTBOUND',
+                        status: 'SENT',
+                        isOutbound: true,
+                        isDocument: true,
+                        isImage: false,
+                        isVideo: false,
+                        isText: false,
+                        hasText: true,
+                        fileName: 'Pentacloud_Brochure.pdf',
+                        bubbleClass: 'msg-bubble msg-outbound'
+                    };
+
+                    this.messages = [...this.messages, brochureMsg];
+                    this.scrollToBottom();
+
+                    // Refresh messages from Apex after short delay to sync Salesforce record
+                    // eslint-disable-next-line @lwc/lwc/no-async-operation
+                    setTimeout(() => {
+                        this.loadMessagesFromApex();
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || 'Server reported failure');
+                }
+            } else {
+                throw new Error(`Server returned HTTP ${res.status}`);
+            }
+        } catch (err) {
+            console.error('[WhatzuppChat] handleSendBrochure error:', err);
+            this.showToast('Error', 'Failed to send Pentacloud Brochure: ' + (err.message || err), 'error');
+        } finally {
+            this.isSending = false;
         }
     }
 }
