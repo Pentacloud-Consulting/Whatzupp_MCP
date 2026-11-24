@@ -138,37 +138,83 @@ export async function sendPentacloudBrochure(params: SendBrochureParams): Promis
   try {
     const { access_token, instance_url } = await getSalesCloudAccessToken();
     if (access_token && !access_token.startsWith('mock-')) {
-      // 3a. Create ContentVersion in Salesforce Files
-      const cvPayload = {
-        Title: 'Pentacloud Consulting Brochure',
-        PathOnClient: fileName,
-        VersionData: base64File,
-        Origin: 'H',
-        FirstPublishLocationId: leadId || contactId || undefined,
-      };
-
-      const cvRes = await fetch(`${instance_url}/services/data/v59.0/sobjects/ContentVersion`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(cvPayload),
+      // 3a. Re-use existing ContentVersion in Salesforce Files if present, avoiding storage limit exhaustion
+      const existQuery = await fetch(`${instance_url}/services/data/v59.0/query?q=SELECT+Id,+ContentDocumentId+FROM+ContentVersion+WHERE+Title='Pentacloud+Consulting+Brochure'+AND+IsLatest=true+ORDER+BY+CreatedDate+DESC+LIMIT+1`, {
+        headers: { Authorization: `Bearer ${access_token}` },
       });
 
-      if (cvRes.ok) {
-        const cvData = await cvRes.json();
-        contentVersionId = cvData.id;
+      if (existQuery.ok) {
+        const existData = await existQuery.json();
+        if (existData.records && existData.records.length > 0) {
+          contentVersionId = existData.records[0].Id;
+          contentDocumentId = existData.records[0].ContentDocumentId;
+          console.log(`[brochureService] Reusing existing Salesforce File: ContentVersion=${contentVersionId}, ContentDocument=${contentDocumentId}`);
 
-        // Query ContentDocumentId
-        const cdQuery = await fetch(`${instance_url}/services/data/v59.0/query?q=SELECT+ContentDocumentId+FROM+ContentVersion+WHERE+Id='${contentVersionId}'`, {
-          headers: { Authorization: `Bearer ${access_token}` },
-        });
-        if (cdQuery.ok) {
-          const cdData = await cdQuery.json();
-          contentDocumentId = cdData.records?.[0]?.ContentDocumentId;
+          // Link to Lead or Contact via ContentDocumentLink if not already linked
+          const targetId = leadId || contactId;
+          if (targetId && contentDocumentId) {
+            try {
+              const linkCheck = await fetch(`${instance_url}/services/data/v59.0/query?q=SELECT+Id+FROM+ContentDocumentLink+WHERE+ContentDocumentId='${contentDocumentId}'+AND+LinkedEntityId='${targetId}'+LIMIT+1`, {
+                headers: { Authorization: `Bearer ${access_token}` },
+              });
+              if (linkCheck.ok) {
+                const linkData = await linkCheck.json();
+                if (!linkData.records || linkData.records.length === 0) {
+                  await fetch(`${instance_url}/services/data/v59.0/sobjects/ContentDocumentLink`, {
+                    method: 'POST',
+                    headers: {
+                      Authorization: `Bearer ${access_token}`,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      ContentDocumentId: contentDocumentId,
+                      LinkedEntityId: targetId,
+                      ShareType: 'V',
+                      Visibility: 'AllUsers',
+                    }),
+                  });
+                  console.log(`[brochureService] Linked existing brochure ContentDocument ${contentDocumentId} to ${targetId}`);
+                }
+              }
+            } catch (linkErr) {
+              console.warn('[brochureService] ContentDocumentLink creation warning:', linkErr);
+            }
+          }
         }
-        console.log(`[brochureService] Created Salesforce File: ContentVersion=${contentVersionId}, ContentDocument=${contentDocumentId}`);
+      }
+
+      // If no file exists yet, upload ContentVersion as fallback
+      if (!contentVersionId) {
+        const cvPayload = {
+          Title: 'Pentacloud Consulting Brochure',
+          PathOnClient: fileName,
+          VersionData: base64File,
+          Origin: 'H',
+          FirstPublishLocationId: leadId || contactId || undefined,
+        };
+
+        const cvRes = await fetch(`${instance_url}/services/data/v59.0/sobjects/ContentVersion`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(cvPayload),
+        });
+
+        if (cvRes.ok) {
+          const cvData = await cvRes.json();
+          contentVersionId = cvData.id;
+
+          const cdQuery = await fetch(`${instance_url}/services/data/v59.0/query?q=SELECT+ContentDocumentId+FROM+ContentVersion+WHERE+Id='${contentVersionId}'`, {
+            headers: { Authorization: `Bearer ${access_token}` },
+          });
+          if (cdQuery.ok) {
+            const cdData = await cdQuery.json();
+            contentDocumentId = cdData.records?.[0]?.ContentDocumentId;
+          }
+          console.log(`[brochureService] Created Salesforce File: ContentVersion=${contentVersionId}, ContentDocument=${contentDocumentId}`);
+        }
       }
 
       // 3b. Update Brochure_Downloaded__c = true on Lead

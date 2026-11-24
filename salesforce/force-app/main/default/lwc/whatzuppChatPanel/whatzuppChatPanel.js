@@ -18,8 +18,8 @@ import CONTACT_NAME from '@salesforce/schema/Contact.Name';
 import ACCOUNT_PHONE from '@salesforce/schema/Account.Phone';
 import ACCOUNT_NAME from '@salesforce/schema/Account.Name';
 
-// ─── Vercel API URL (used ONLY for sending — never for reading) ───
-const DEFAULT_HTTPS_APP_URL = 'https://whatzupp-mcp-pentacloud.vercel.app';
+// ─── Default Backend API URL (VPS Production / Vercel fallback) ───
+const DEFAULT_HTTPS_APP_URL = 'https://whatzupp.com';
 
 
 // ─── Emoji Data — categorised common emojis ───
