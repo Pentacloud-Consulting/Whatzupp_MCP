@@ -441,6 +441,12 @@ export default class WhatzuppChatPanel extends NavigationMixin(LightningElement)
             return;
         }
 
+        // Auto-detect if agent typed 'Location' or 'Send location' or 'Address'
+        if (/^(send\s+)?(location|address)$/i.test(textToSend)) {
+            await this.handleSendLocation();
+            return;
+        }
+
         this.isSending = true;
 
         // Optimistic UI: show message immediately
@@ -1051,6 +1057,75 @@ export default class WhatzuppChatPanel extends NavigationMixin(LightningElement)
         } catch (err) {
             console.error('[WhatzuppChat] handleSendBrochure error:', err);
             this.showToast('Error', 'Failed to send Pentacloud Brochure: ' + (err.message || err), 'error');
+        } finally {
+            this.isSending = false;
+        }
+    }
+
+    // ════════════════════════════════════════
+    // ─── SEND PENTACLOUD OFFICE LOCATION ───
+    // ════════════════════════════════════════
+
+    async handleSendLocation() {
+        if (!this.contactPhone) {
+            this.showToast('Error', 'Contact phone number is not available on this record.', 'error');
+            return;
+        }
+
+        this.isSending = true;
+        this.showToast('Sending Location', 'Sending Pentacloud office location to WhatsApp...', 'info');
+
+        try {
+            const res = await fetch(`${this.appBaseUrl}/api/location/send`, {
+                method: 'POST',
+                headers: this._getHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({
+                    phone: this.contactPhone,
+                    recordId: this.recordId,
+                    objectType: this.objectApiName,
+                    senderName: 'Pentacloud Consulting'
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    this.showToast('Success', 'Office location sent successfully!', 'success');
+
+                    const locMsg = {
+                        id: data.messageId || ('loc-' + Date.now()),
+                        content: '📍 [Location: Pentacloud Consulting]\nJagan Arcade, 4th Floor, 1st main Road Post, Anandnagar, RT Nagar, Bengaluru, Karnataka 560032\n\nGoogle Maps: https://maps.google.com/?q=13.0227204,77.5957150',
+                        displayContent: '📍 Pentacloud Consulting\nJagan Arcade, 4th Floor, 1st main Road Post, Anandnagar, RT Nagar, Bengaluru, Karnataka 560032',
+                        formattedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        timestamp: new Date().toISOString(),
+                        direction: 'OUTBOUND',
+                        status: 'SENT',
+                        isOutbound: true,
+                        isDocument: false,
+                        isImage: false,
+                        isVideo: false,
+                        isText: true,
+                        hasText: true,
+                        bubbleClass: 'msg-bubble msg-outbound'
+                    };
+
+                    this.messages = [...this.messages, locMsg];
+                    this.scrollToBottom();
+
+                    // Refresh messages from Apex after short delay to sync Salesforce record
+                    // eslint-disable-next-line @lwc/lwc/no-async-operation
+                    setTimeout(() => {
+                        this.loadMessagesFromApex();
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || 'Server reported failure');
+                }
+            } else {
+                throw new Error(`Server returned HTTP ${res.status}`);
+            }
+        } catch (err) {
+            console.error('[WhatzuppChat] handleSendLocation error:', err);
+            this.showToast('Error', 'Failed to send office location: ' + (err.message || err), 'error');
         } finally {
             this.isSending = false;
         }

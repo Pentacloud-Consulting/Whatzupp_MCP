@@ -158,6 +158,10 @@
     --slds-c-icon-color-foreground-default: #0070d2;
 }
 
+.location-btn:hover {
+    --slds-c-icon-color-foreground-default: #ea4335;
+}
+
 .input-row {
     display: flex;
     gap: 8px;

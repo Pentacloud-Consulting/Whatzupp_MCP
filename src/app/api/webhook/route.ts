@@ -614,6 +614,23 @@ export async function POST(request: Request) {
                         console.error('[webhook] Auto-send brochure failed:', brochureErr);
                       }
                     }
+
+                    // ---- Automated Location / Address Request Detection & Auto-Reply ----
+                    const isLocation = /\b(location|address|office\s*location|office\s*address|share\s*location|send\s*location|where\s*(is|are)\s*(you|your\s*office))\b/i.test(bodyText) && message.type === 'text';
+                    if (isLocation) {
+                      console.log(`[webhook] Automated Location keyword detected from ${normalizedPhone}: "${contentText}". Triggering Pentacloud Location auto-send.`);
+                      try {
+                        const { sendPentacloudLocation } = await import('@/lib/locationService');
+                        await sendPentacloudLocation({
+                          recipientPhone: normalizedPhone,
+                          leadId: contact?.salesforceObjectType === 'Lead' ? contact.salesforceRecordId : undefined,
+                          contactId: contact?.salesforceObjectType === 'Contact' ? contact.salesforceRecordId : undefined,
+                          senderName: 'Pentacloud Auto-Responder',
+                        });
+                      } catch (locationErr) {
+                        console.error('[webhook] Auto-send location failed:', locationErr);
+                      }
+                    }
                   }
                 } catch (e) {
                   console.error('[webhook] WhatsApp Status / Brochure trigger failed:', e);
