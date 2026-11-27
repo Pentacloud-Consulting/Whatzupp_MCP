@@ -694,9 +694,10 @@ export default class WhatzuppChatPanel extends NavigationMixin(LightningElement)
             const rawTemplates = data.templates || data.data || [];
             this.templates = rawTemplates.map(t => {
                 const bodyComp = (t.components || []).find(c => c.type === 'BODY');
+                const bodyText = (bodyComp && typeof bodyComp.text === 'string') ? bodyComp.text : '';
                 return {
                     ...t,
-                    bodyPreview: bodyComp ? bodyComp.text.slice(0, 120) + (bodyComp.text.length > 120 ? '...' : '') : 'No body text',
+                    bodyPreview: bodyText ? bodyText.slice(0, 120) + (bodyText.length > 120 ? '...' : '') : 'No body text',
                     categoryClass: `template-category cat-${(t.category || 'UTILITY').toLowerCase()}`,
                     isSelected: false,
                 };

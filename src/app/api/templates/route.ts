@@ -6,6 +6,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Workspace-Id, X-Workspace-Key, bypass-tunnel-reminder',
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: corsHeaders,
+  });
+}
+
 interface MetaTemplate {
   name: string;
   status: string;
@@ -74,7 +87,7 @@ export async function GET(request: NextRequest) {
       console.error('[templates] Missing WHATSAPP_ACCESS_TOKEN or WABA_ID');
       return NextResponse.json(
         { success: false, error: 'WhatsApp Access Token or WABA ID not configured. Please check .env.local or Settings.' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -98,7 +111,7 @@ export async function GET(request: NextRequest) {
         const msg = errorData.error?.message || errorData.error?.error_user_msg || `Meta API Error ${response.status}`;
         return NextResponse.json(
           { success: false, error: `Meta API Error: ${msg}`, details: errorData },
-          { status: 502 }
+          { status: 502, headers: corsHeaders }
         );
       }
 
@@ -134,12 +147,12 @@ export async function GET(request: NextRequest) {
       success: true,
       templates: cleanTemplates,
       count: cleanTemplates.length,
-    });
+    }, { headers: corsHeaders });
   } catch (error: any) {
     console.error('[templates] Internal error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

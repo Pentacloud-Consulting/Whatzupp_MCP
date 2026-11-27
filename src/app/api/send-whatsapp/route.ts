@@ -121,7 +121,7 @@ export async function POST(request: Request) {
       console.error('[send-whatsapp] Missing phone/templateName. inArgs:', JSON.stringify(inArgs), 'body keys:', Object.keys(body));
       return NextResponse.json(
         { error: 'Missing required fields: phone and templateName are required' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
       console.error('[send-whatsapp] Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID');
       return NextResponse.json(
         { error: 'Server configuration error: WhatsApp credentials not configured' },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -190,7 +190,7 @@ export async function POST(request: Request) {
       console.error('[send-whatsapp] Meta API error:', JSON.stringify(errorData));
       return NextResponse.json(
         { error: 'Failed to send WhatsApp template message', details: errorData },
-        { status: 502 }
+        { status: 502, headers: corsHeaders }
       );
     }
 
@@ -275,12 +275,12 @@ export async function POST(request: Request) {
       messageId: wamid,
       to: formattedPhone,
       templateName,
-    });
+    }, { headers: corsHeaders });
   } catch (error) {
     console.error('[send-whatsapp] Internal error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
