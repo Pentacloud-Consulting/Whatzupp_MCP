@@ -584,72 +584,78 @@ export async function POST(request: Request) {
                 
                 try {
                   const scConnector = workspaceRegistry.getConnector('salescloud-ws-1') as any;
+                  let resolvedContact: any = null;
                   if (scConnector) {
-                    const contact = await scConnector.findContact({ phoneNumber: normalizedPhone });
-                    if (contact && (contact.salesforceObjectType === 'Lead' || contact.salesforceObjectType === 'Contact') && contact.salesforceRecordId) {
-                      if (isStop) {
-                        if (contact.whatsappStatus !== 'Unsubscribed') {
-                          console.log(`[webhook] Opt-Out keyword detected from ${normalizedPhone}. Marking as Unsubscribed in Salesforce.`);
-                          await scConnector.updateWhatsAppStatus(contact.salesforceRecordId, contact.salesforceObjectType, 'Unsubscribed', normalizedPhone, contentText);
-                        }
-                      } else {
-                        if (contact.whatsappStatus === 'Unsubscribed') {
-                          console.log(`[webhook] Inbound message from unsubscribed contact ${normalizedPhone}. Auto-resubscribing in Salesforce.`);
-                          await scConnector.updateWhatsAppStatus(contact.salesforceRecordId, contact.salesforceObjectType, 'Subscribed', normalizedPhone, contentText);
-                        }
+                    try {
+                      resolvedContact = await scConnector.findContact({ phoneNumber: normalizedPhone });
+                    } catch (findErr) {
+                      console.warn('[webhook] findContact error in salescloud-ws-1:', findErr);
+                    }
+                  }
+
+                  if (resolvedContact && (resolvedContact.salesforceObjectType === 'Lead' || resolvedContact.salesforceObjectType === 'Contact') && resolvedContact.salesforceRecordId) {
+                    if (isStop) {
+                      if (resolvedContact.whatsappStatus !== 'Unsubscribed') {
+                        console.log(`[webhook] Opt-Out keyword detected from ${normalizedPhone}. Marking as Unsubscribed in Salesforce.`);
+                        await scConnector.updateWhatsAppStatus(resolvedContact.salesforceRecordId, resolvedContact.salesforceObjectType, 'Unsubscribed', normalizedPhone, contentText);
+                      }
+                    } else {
+                      if (resolvedContact.whatsappStatus === 'Unsubscribed') {
+                        console.log(`[webhook] Inbound message from unsubscribed contact ${normalizedPhone}. Auto-resubscribing in Salesforce.`);
+                        await scConnector.updateWhatsAppStatus(resolvedContact.salesforceRecordId, resolvedContact.salesforceObjectType, 'Subscribed', normalizedPhone, contentText);
                       }
                     }
+                  }
 
-                    // ---- Automated Brochure Request Detection & Auto-Reply ----
-                    const isBrochure = /\b(brochure|catalogue|catalog)\b/i.test(bodyText) && message.type === 'text';
-                    if (isBrochure) {
-                      console.log(`[webhook] Automated Brochure keyword detected from ${normalizedPhone}: "${contentText}". Triggering Pentacloud Brochure auto-send.`);
-                      try {
-                        const { sendPentacloudBrochure } = await import('@/lib/brochureService');
-                        await sendPentacloudBrochure({
-                          recipientPhone: normalizedPhone,
-                          leadId: contact?.salesforceObjectType === 'Lead' ? contact.salesforceRecordId : undefined,
-                          contactId: contact?.salesforceObjectType === 'Contact' ? contact.salesforceRecordId : undefined,
-                          senderName: 'Pentacloud Auto-Responder',
-                          caption: 'Hello! Here is the Pentacloud Consulting Brochure. Please feel free to reach out if you have any questions!',
-                        });
-                      } catch (brochureErr) {
-                        console.error('[webhook] Auto-send brochure failed:', brochureErr);
-                      }
+                  // ---- Automated Brochure Request Detection & Auto-Reply ----
+                  const isBrochure = /\b(brochure|catalogue|catalog)\b/i.test(bodyText) && message.type === 'text';
+                  if (isBrochure) {
+                    console.log(`[webhook] Automated Brochure keyword detected from ${normalizedPhone}: "${contentText}". Triggering Pentacloud Brochure auto-send.`);
+                    try {
+                      const { sendPentacloudBrochure } = await import('@/lib/brochureService');
+                      await sendPentacloudBrochure({
+                        recipientPhone: normalizedPhone,
+                        leadId: resolvedContact?.salesforceObjectType === 'Lead' ? resolvedContact.salesforceRecordId : undefined,
+                        contactId: resolvedContact?.salesforceObjectType === 'Contact' ? resolvedContact.salesforceRecordId : undefined,
+                        senderName: 'Pentacloud Auto-Responder',
+                        caption: 'Hello! Here is the Pentacloud Consulting Brochure. Please feel free to reach out if you have any questions!',
+                      });
+                    } catch (brochureErr) {
+                      console.error('[webhook] Auto-send brochure failed:', brochureErr);
                     }
+                  }
 
-                    // ---- Automated Location / Address Request Detection & Auto-Reply ----
-                    const isLocation = /\b(location|address|office\s*location|office\s*address|share\s*location|send\s*location|where\s*(is|are)\s*(you|your\s*office))\b/i.test(bodyText) && message.type === 'text';
-                    if (isLocation) {
-                      console.log(`[webhook] Automated Location keyword detected from ${normalizedPhone}: "${contentText}". Triggering Pentacloud Location auto-send.`);
-                      try {
-                        const { sendPentacloudLocation } = await import('@/lib/locationService');
-                        await sendPentacloudLocation({
-                          recipientPhone: normalizedPhone,
-                          leadId: contact?.salesforceObjectType === 'Lead' ? contact.salesforceRecordId : undefined,
-                          contactId: contact?.salesforceObjectType === 'Contact' ? contact.salesforceRecordId : undefined,
-                          senderName: 'Pentacloud Auto-Responder',
-                        });
-                      } catch (locationErr) {
-                        console.error('[webhook] Auto-send location failed:', locationErr);
-                      }
+                  // ---- Automated Location / Address Request Detection & Auto-Reply ----
+                  const isLocation = /\b(location|address|office\s*location|office\s*address|share\s*location|send\s*location|where\s*(is|are)\s*(you|your\s*office))\b/i.test(bodyText) && message.type === 'text';
+                  if (isLocation) {
+                    console.log(`[webhook] Automated Location keyword detected from ${normalizedPhone}: "${contentText}". Triggering Pentacloud Location auto-send.`);
+                    try {
+                      const { sendPentacloudLocation } = await import('@/lib/locationService');
+                      await sendPentacloudLocation({
+                        recipientPhone: normalizedPhone,
+                        leadId: resolvedContact?.salesforceObjectType === 'Lead' ? resolvedContact.salesforceRecordId : undefined,
+                        contactId: resolvedContact?.salesforceObjectType === 'Contact' ? resolvedContact.salesforceRecordId : undefined,
+                        senderName: 'Pentacloud Auto-Responder',
+                      });
+                    } catch (locationErr) {
+                      console.error('[webhook] Auto-send location failed:', locationErr);
                     }
+                  }
 
-                    // ---- Automated Click-to-WhatsApp Lead Generation Flow ----
-                    if (!isBrochure && !isLocation && !isStop) {
-                      try {
-                        const { handleLeadFlowMessage } = await import('@/lib/interactiveLeadFlowService');
-                        const referralHeadline = (message as any).referral?.headline || (message as any).referral?.body;
-                        await handleLeadFlowMessage({
-                          phone: normalizedPhone,
-                          contentText: contentText || '',
-                          interactiveReplyId,
-                          referralHeadline,
-                          leadId: contact?.salesforceObjectType === 'Lead' ? contact.salesforceRecordId : undefined,
-                        });
-                      } catch (leadFlowErr) {
-                        console.error('[webhook] Interactive Lead Flow failed:', leadFlowErr);
-                      }
+                  // ---- Automated Click-to-WhatsApp Lead Generation Flow ----
+                  if (!isBrochure && !isLocation && !isStop) {
+                    try {
+                      const { handleLeadFlowMessage } = await import('@/lib/interactiveLeadFlowService');
+                      const referralHeadline = (message as any).referral?.headline || (message as any).referral?.body;
+                      await handleLeadFlowMessage({
+                        phone: normalizedPhone,
+                        contentText: contentText || '',
+                        interactiveReplyId,
+                        referralHeadline,
+                        leadId: resolvedContact?.salesforceObjectType === 'Lead' ? resolvedContact.salesforceRecordId : undefined,
+                      });
+                    } catch (leadFlowErr) {
+                      console.error('[webhook] Interactive Lead Flow failed:', leadFlowErr);
                     }
                   }
                 } catch (e) {

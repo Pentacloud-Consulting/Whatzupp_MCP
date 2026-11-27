@@ -1,17 +1,16 @@
 // src/lib/interactiveLeadFlowService.ts
 // Handles the interactive WhatsApp Click-to-WhatsApp Lead Generation Journey
+// State is persisted directly on the Salesforce Lead record (WhatZupp_Labels__c)
 // 1. Welcome + Interactive Buttons [Yes, I'm interested | Just exploring]
 // 2. Service Selection [Salesforce, Zoho, Digital Marketing, Website/App Dev, Other IT]
 // 3. Name Capture
 // 4. Company Name Capture
 // 5. Requirement Capture
 // 6. Final Thank You Confirmation
-// Designed for serverless resilience with Vercel KV / persistent storage + stateless recovery
 
 import { SalesCloudConnector } from '@/lib/connectors/salesCloudConnector';
 import { emitRealtimeMessage } from '@/lib/realtime';
 import { getSalesCloudAccessToken } from '@/lib/salesCloudAuth';
-import { getConfig, setConfig } from '@/lib/storage/kvStore';
 import { normalizePhoneNumber } from '@/utils/phone';
 
 export type LeadFlowStep =
@@ -19,67 +18,129 @@ export type LeadFlowStep =
   | 'STEP_SERVICE'
   | 'STEP_NAME'
   | 'STEP_COMPANY'
-  | 'STEP_REQUIREMENT';
+  | 'STEP_REQUIREMENT'
+  | 'COMPLETED';
 
-export interface LeadFlowState {
-  phone: string;
-  step: LeadFlowStep;
-  service?: string;
-  name?: string;
+interface SalesforceLeadState {
+  id: string;
+  firstName?: string;
+  lastName?: string;
   company?: string;
-  leadId?: string;
-  updatedAt: number;
+  step?: LeadFlowStep;
+  description?: string;
 }
 
-// In-memory session store fallback
-const flowSessions = new Map<string, LeadFlowState>();
-const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
-
-export async function getFlowSession(phone: string): Promise<LeadFlowState | null> {
+/**
+ * Queries Salesforce for the existing Lead and extracts the flow state
+ */
+async function getLeadFromSalesforce(phone: string): Promise<SalesforceLeadState | null> {
   const cleanPhone = normalizePhoneNumber(phone);
+  const safePhone = cleanPhone.replace(/'/g, "\\'");
+  const last10 = cleanPhone.slice(-10);
 
-  // 1. Try persistent storage first (handles Vercel Serverless cold starts)
   try {
-    const data = (await getConfig(`lead_flow_${cleanPhone}`)) as LeadFlowState | null;
-    if (data && typeof data === 'object' && data.step) {
-      if (Date.now() - (data.updatedAt || 0) < SESSION_TTL_MS) {
-        return data;
+    const scConnector = new SalesCloudConnector();
+    const soql = `SELECT Id, FirstName, LastName, Company, Description, WhatZupp_Labels__c, Status FROM Lead WHERE (Phone = '${safePhone}' OR MobilePhone = '${safePhone}' OR Phone LIKE '%${last10}' OR MobilePhone LIKE '%${last10}') ORDER BY CreatedDate DESC LIMIT 1`;
+    const records = await scConnector.execSoql(soql);
+
+    if (records && records.length > 0) {
+      const r = records[0];
+      let step: LeadFlowStep | undefined = undefined;
+      const labels = r.WhatZupp_Labels__c || '';
+
+      if (labels.includes('LEAD_FLOW:STEP_INTEREST')) step = 'STEP_INTEREST';
+      else if (labels.includes('LEAD_FLOW:STEP_SERVICE')) step = 'STEP_SERVICE';
+      else if (labels.includes('LEAD_FLOW:STEP_NAME')) step = 'STEP_NAME';
+      else if (labels.includes('LEAD_FLOW:STEP_COMPANY')) step = 'STEP_COMPANY';
+      else if (labels.includes('LEAD_FLOW:STEP_REQUIREMENT')) step = 'STEP_REQUIREMENT';
+      else if (labels.includes('LEAD_FLOW:COMPLETED')) step = 'COMPLETED';
+
+      return {
+        id: r.Id,
+        firstName: r.FirstName,
+        lastName: r.LastName,
+        company: r.Company && r.Company !== '[Pending]' ? r.Company : undefined,
+        step,
+        description: r.Description,
+      };
+    }
+  } catch (err) {
+    console.error('[leadFlowService] getLeadFromSalesforce error:', err);
+  }
+  return null;
+}
+
+/**
+ * Creates or retrieves a Lead in Salesforce for this phone number
+ */
+async function ensureLead(phone: string, referralHeadline?: string): Promise<string | undefined> {
+  const cleanPhone = normalizePhoneNumber(phone);
+  const existing = await getLeadFromSalesforce(cleanPhone);
+  if (existing?.id) return existing.id;
+
+  try {
+    const scConnector = new SalesCloudConnector();
+    const source = referralHeadline ? `Instagram Ad: ${referralHeadline.slice(0, 40)}` : 'WhatsApp Lead';
+    const newLead = await scConnector.createLead({
+      name: 'WhatsApp Prospect',
+      phoneNumber: cleanPhone,
+      company: '[Pending]',
+      labels: 'LEAD_FLOW:STEP_INTEREST',
+    });
+
+    if (newLead && newLead.salesforceRecordId) {
+      try {
+        const { access_token, instance_url } = await getSalesCloudAccessToken();
+        if (!access_token.startsWith('mock-')) {
+          await fetch(`${instance_url}/services/data/v59.0/sobjects/Lead/${newLead.salesforceRecordId}`, {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              LeadSource: 'WhatsApp / Ad',
+              Status: 'New',
+              WhatZupp_Labels__c: 'LEAD_FLOW:STEP_INTEREST',
+            }),
+          });
+        }
+      } catch (patchErr) {
+        console.warn('[leadFlowService] Failed to patch LeadSource on new lead:', patchErr);
+      }
+      return newLead.salesforceRecordId;
+    }
+  } catch (err) {
+    console.error('[leadFlowService] ensureLead failed:', err);
+  }
+  return undefined;
+}
+
+/**
+ * Updates Salesforce Lead record fields safely
+ */
+async function updateSalesforceLead(leadId: string, fields: Record<string, any>): Promise<void> {
+  try {
+    const { access_token, instance_url } = await getSalesCloudAccessToken();
+    if (!access_token.startsWith('mock-')) {
+      const res = await fetch(`${instance_url}/services/data/v59.0/sobjects/Lead/${leadId}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(fields),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        console.error(`[leadFlowService] updateSalesforceLead failed (${res.status}): ${errText}`);
+      } else {
+        console.log(`[leadFlowService] Successfully updated Salesforce Lead ${leadId} with:`, Object.keys(fields));
       }
     }
-  } catch (e) {
-    console.warn('[leadFlowService] kvStore get error:', e);
-  }
-
-  // 2. Fallback to in-memory
-  const session = flowSessions.get(cleanPhone);
-  if (!session) return null;
-
-  if (Date.now() - session.updatedAt > SESSION_TTL_MS) {
-    flowSessions.delete(cleanPhone);
-    return null;
-  }
-  return session;
-}
-
-export async function setFlowSession(phone: string, state: LeadFlowState): Promise<void> {
-  const cleanPhone = normalizePhoneNumber(phone);
-  state.updatedAt = Date.now();
-  flowSessions.set(cleanPhone, state);
-
-  try {
-    await setConfig(`lead_flow_${cleanPhone}`, state);
-  } catch (e) {
-    console.warn('[leadFlowService] kvStore set error:', e);
-  }
-}
-
-export async function clearFlowSession(phone: string): Promise<void> {
-  const cleanPhone = normalizePhoneNumber(phone);
-  flowSessions.delete(cleanPhone);
-  try {
-    await setConfig(`lead_flow_${cleanPhone}`, null);
-  } catch (e) {
-    console.warn('[leadFlowService] kvStore clear error:', e);
+  } catch (err) {
+    console.error('[leadFlowService] Error updating Salesforce Lead:', err);
   }
 }
 
@@ -163,87 +224,17 @@ async function sendWhatsAppAndLogToSalesforce(params: {
 }
 
 /**
- * Creates or retrieves a Lead in Salesforce for this phone number
- */
-async function ensureLead(phone: string, referralHeadline?: string): Promise<string | undefined> {
-  const cleanPhone = normalizePhoneNumber(phone);
-  const scConnector = new SalesCloudConnector();
-
-  try {
-    const contact = await scConnector.findContact({ phoneNumber: cleanPhone });
-    if (contact && contact.salesforceObjectType === 'Lead' && contact.salesforceRecordId) {
-      return contact.salesforceRecordId;
-    }
-
-    const source = referralHeadline ? `Instagram Ad: ${referralHeadline.slice(0, 40)}` : 'WhatsApp Lead';
-    const newLead = await scConnector.createLead({
-      name: 'WhatsApp Prospect',
-      phoneNumber: cleanPhone,
-      company: 'Pending Details',
-      labels: 'Inbound WhatsApp Lead',
-    });
-
-    if (newLead && newLead.salesforceRecordId) {
-      try {
-        const { access_token, instance_url } = await getSalesCloudAccessToken();
-        if (!access_token.startsWith('mock-')) {
-          await fetch(`${instance_url}/services/data/v59.0/sobjects/Lead/${newLead.salesforceRecordId}`, {
-            method: 'PATCH',
-            headers: {
-              Authorization: `Bearer ${access_token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              LeadSource: 'WhatsApp / Ad',
-              Status: 'New',
-            }),
-          });
-        }
-      } catch (patchErr) {
-        console.warn('[leadFlowService] Failed to patch LeadSource on new lead:', patchErr);
-      }
-      return newLead.salesforceRecordId;
-    }
-  } catch (err) {
-    console.error('[leadFlowService] ensureLead failed:', err);
-  }
-  return undefined;
-}
-
-/**
- * Updates Salesforce Lead record fields safely
- */
-async function updateSalesforceLead(leadId: string, fields: Record<string, any>): Promise<void> {
-  try {
-    const { access_token, instance_url } = await getSalesCloudAccessToken();
-    if (!access_token.startsWith('mock-')) {
-      const res = await fetch(`${instance_url}/services/data/v59.0/sobjects/Lead/${leadId}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(fields),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        console.error(`[leadFlowService] updateSalesforceLead failed (${res.status}): ${errText}`);
-      } else {
-        console.log(`[leadFlowService] Successfully updated Salesforce Lead ${leadId} with:`, Object.keys(fields));
-      }
-    }
-  } catch (err) {
-    console.error('[leadFlowService] Error updating Salesforce Lead:', err);
-  }
-}
-
-/**
  * Step 1: Send Welcome Message with Interactive Buttons
  */
 export async function sendStep1Welcome(phone: string, referralHeadline?: string): Promise<void> {
   const cleanPhone = normalizePhoneNumber(phone);
   const leadId = await ensureLead(cleanPhone, referralHeadline);
+
+  if (leadId) {
+    await updateSalesforceLead(leadId, {
+      WhatZupp_Labels__c: 'LEAD_FLOW:STEP_INTEREST',
+    });
+  }
 
   const welcomeText =
     "Hello! 👋 Welcome to Pentacloud Consulting.\n\n" +
@@ -280,21 +271,20 @@ export async function sendStep1Welcome(phone: string, referralHeadline?: string)
 
   const displayText = `${welcomeText}\n[Buttons: Yes, I'm interested | Just exploring]`;
   await sendWhatsAppAndLogToSalesforce({ to: cleanPhone, payload, displayText, leadId });
-
-  await setFlowSession(cleanPhone, {
-    phone: cleanPhone,
-    step: 'STEP_INTEREST',
-    leadId,
-    updatedAt: Date.now(),
-  });
 }
 
 /**
- * Step 2: Send Services List / Buttons
+ * Step 2: Send Services List
  */
 export async function sendStep2Services(phone: string, leadId?: string): Promise<void> {
   const cleanPhone = normalizePhoneNumber(phone);
   const promptText = "Certainly! We'd be happy to assist you. 😊\nMay I know which service you're looking for?";
+
+  if (leadId) {
+    await updateSalesforceLead(leadId, {
+      WhatZupp_Labels__c: 'LEAD_FLOW:STEP_SERVICE',
+    });
+  }
 
   const payload = {
     type: 'interactive',
@@ -330,14 +320,6 @@ export async function sendStep2Services(phone: string, leadId?: string): Promise
 
   const displayText = `${promptText}\n[Options: Salesforce Services | Zoho Solutions | Digital Marketing | Website / App Dev | Other IT Services]`;
   await sendWhatsAppAndLogToSalesforce({ to: cleanPhone, payload, displayText, leadId });
-
-  const session = await getFlowSession(cleanPhone);
-  await setFlowSession(cleanPhone, {
-    phone: cleanPhone,
-    step: 'STEP_SERVICE',
-    leadId: leadId || session?.leadId,
-    updatedAt: Date.now(),
-  });
 }
 
 /**
@@ -347,18 +329,18 @@ export async function sendStep3AskName(phone: string, leadId?: string): Promise<
   const cleanPhone = normalizePhoneNumber(phone);
   const promptText = 'Thank you for sharing that. May I know your name, please?';
 
+  if (leadId) {
+    await updateSalesforceLead(leadId, {
+      WhatZupp_Labels__c: 'LEAD_FLOW:STEP_NAME',
+    });
+  }
+
   const payload = {
     type: 'text',
     text: { preview_url: false, body: promptText },
   };
 
   await sendWhatsAppAndLogToSalesforce({ to: cleanPhone, payload, displayText: promptText, leadId });
-
-  const session = await getFlowSession(cleanPhone);
-  if (session) {
-    session.step = 'STEP_NAME';
-    await setFlowSession(cleanPhone, session);
-  }
 }
 
 /**
@@ -368,19 +350,18 @@ export async function sendStep4AskCompany(phone: string, customerName: string, l
   const cleanPhone = normalizePhoneNumber(phone);
   const promptText = `Thank you, ${customerName}. 😊\nMay I also know the name of your company or business?`;
 
+  if (leadId) {
+    await updateSalesforceLead(leadId, {
+      WhatZupp_Labels__c: 'LEAD_FLOW:STEP_COMPANY',
+    });
+  }
+
   const payload = {
     type: 'text',
     text: { preview_url: false, body: promptText },
   };
 
   await sendWhatsAppAndLogToSalesforce({ to: cleanPhone, payload, displayText: promptText, leadId });
-
-  const session = await getFlowSession(cleanPhone);
-  if (session) {
-    session.step = 'STEP_COMPANY';
-    session.name = customerName;
-    await setFlowSession(cleanPhone, session);
-  }
 }
 
 /**
@@ -391,18 +372,18 @@ export async function sendStep5AskRequirement(phone: string, leadId?: string): P
   const promptText =
     "Could you briefly tell us what you're looking to achieve or what kind of support you need? This will help us connect you with the right team.";
 
+  if (leadId) {
+    await updateSalesforceLead(leadId, {
+      WhatZupp_Labels__c: 'LEAD_FLOW:STEP_REQUIREMENT',
+    });
+  }
+
   const payload = {
     type: 'text',
     text: { preview_url: false, body: promptText },
   };
 
   await sendWhatsAppAndLogToSalesforce({ to: cleanPhone, payload, displayText: promptText, leadId });
-
-  const session = await getFlowSession(cleanPhone);
-  if (session) {
-    session.step = 'STEP_REQUIREMENT';
-    await setFlowSession(cleanPhone, session);
-  }
 }
 
 /**
@@ -415,14 +396,19 @@ export async function sendStep6Confirmation(phone: string, leadId?: string): Pro
     "We've noted your enquiry, and our team at Pentacloud Consulting will review your requirements and get in touch with you shortly.\n\n" +
     "We appreciate your interest in Pentacloud and look forward to speaking with you!";
 
+  if (leadId) {
+    await updateSalesforceLead(leadId, {
+      WhatZupp_Labels__c: 'LEAD_FLOW:COMPLETED',
+      Status: 'Working - Contacted',
+    });
+  }
+
   const payload = {
     type: 'text',
     text: { preview_url: false, body: confirmText },
   };
 
   await sendWhatsAppAndLogToSalesforce({ to: cleanPhone, payload, displayText: confirmText, leadId });
-
-  await clearFlowSession(cleanPhone);
 }
 
 /**
@@ -433,26 +419,25 @@ export async function handleJustExploring(phone: string, leadId?: string): Promi
   const replyText =
     "No problem at all! Feel free to explore our solutions on our website: https://pentacloud.com or message us here anytime you'd like to connect. Have a wonderful day! 😊";
 
+  if (leadId) {
+    await updateSalesforceLead(leadId, {
+      WhatZupp_Labels__c: 'LEAD_FLOW:JUST_EXPLORING',
+      Status: 'Open - Not Contacted',
+      Description: 'Inbound lead contacted via WhatsApp, selected "Just Exploring".',
+    });
+  }
+
   const payload = {
     type: 'text',
     text: { preview_url: false, body: replyText },
   };
 
   await sendWhatsAppAndLogToSalesforce({ to: cleanPhone, payload, displayText: replyText, leadId });
-
-  if (leadId) {
-    await updateSalesforceLead(leadId, {
-      Status: 'Open - Not Contacted',
-      Description: 'Inbound lead contacted via WhatsApp, selected "Just Exploring".',
-    });
-  }
-
-  await clearFlowSession(cleanPhone);
 }
 
 /**
  * Main Handler called by Webhook on incoming messages
- * Returns TRUE if the message was handled by this Lead Flow, FALSE otherwise.
+ * State is read directly from the Salesforce Lead record!
  */
 export async function handleLeadFlowMessage(params: {
   phone: string;
@@ -466,48 +451,40 @@ export async function handleLeadFlowMessage(params: {
   const text = contentText.trim();
   const lowerText = text.toLowerCase();
 
-  let session = await getFlowSession(cleanPhone);
-  const currentLeadId = session?.leadId || params.leadId;
+  // 1. Check if user wants to reset/restart the flow
+  if (lowerText === 'restart' || lowerText === 'reset') {
+    console.log(`[leadFlowService] Restart requested for ${cleanPhone}`);
+    await sendStep1Welcome(cleanPhone, referralHeadline);
+    return true;
+  }
 
-  console.log(`[leadFlowService] Inbound: phone=${cleanPhone}, text="${text}", replyId="${interactiveReplyId}", step=${session?.step}`);
+  // 2. Fetch current Lead state from Salesforce
+  const lead = await getLeadFromSalesforce(cleanPhone);
+  const currentLeadId = lead?.id || params.leadId;
+  const currentStep = lead?.step;
 
-  // ─── 1. STATELESS RECOVERY (Essential for Vercel / Serverless cold starts) ───
-  // If the user tapped or typed "Yes, I'm interested"
-  const isYesInterested =
-    interactiveReplyId === 'btn_yes_interested' ||
-    lowerText === "yes, i'm interested" ||
-    lowerText === 'yes' ||
-    (lowerText.includes('interested') && !lowerText.includes('hi') && !lowerText.includes('hello'));
+  console.log(`[leadFlowService] Processing for ${cleanPhone}: text="${text}", replyId="${interactiveReplyId}", sfStep="${currentStep}"`);
 
-  if (isYesInterested) {
-    console.log(`[leadFlowService] Handling 'Yes, I'm interested' for ${cleanPhone}`);
+  // ─── STEP 1 BRANCH: User clicked or typed "Yes, I'm interested" / "Just exploring" ───
+  if (interactiveReplyId === 'btn_yes_interested' || lowerText === "yes, i'm interested" || lowerText === 'yes') {
+    console.log(`[leadFlowService] Step 1 -> Step 2: User interested (${cleanPhone})`);
     await sendStep2Services(cleanPhone, currentLeadId);
     return true;
   }
 
-  // If the user tapped or typed "Just exploring"
-  const isExploring =
-    interactiveReplyId === 'btn_just_exploring' ||
-    lowerText === 'just exploring' ||
-    lowerText === 'exploring';
-
-  if (isExploring) {
-    console.log(`[leadFlowService] Handling 'Just exploring' for ${cleanPhone}`);
+  if (interactiveReplyId === 'btn_just_exploring' || lowerText === 'just exploring' || lowerText === 'exploring') {
+    console.log(`[leadFlowService] Step 1 -> Exploring (${cleanPhone})`);
     await handleJustExploring(cleanPhone, currentLeadId);
     return true;
   }
 
-  // If user selected a service from the interactive list or typed it
-  const isServiceSelection =
+  // ─── STEP 2 BRANCH: User selected a service ───
+  const isServiceOption =
     interactiveReplyId?.startsWith('srv_') ||
-    (session?.step === 'STEP_SERVICE' && text.length > 0) ||
-    lowerText.includes('salesforce') ||
-    lowerText.includes('zoho') ||
-    lowerText.includes('digital marketing') ||
-    lowerText.includes('website / app') ||
-    lowerText.includes('other it');
+    currentStep === 'STEP_SERVICE' ||
+    (currentStep === 'STEP_INTEREST' && (lowerText.includes('salesforce') || lowerText.includes('zoho') || lowerText.includes('marketing') || lowerText.includes('dev')));
 
-  if (isServiceSelection && session?.step !== 'STEP_NAME' && session?.step !== 'STEP_COMPANY' && session?.step !== 'STEP_REQUIREMENT') {
+  if (isServiceOption) {
     let selectedService = 'Salesforce Services';
     if (interactiveReplyId === 'srv_zoho' || lowerText.includes('zoho')) {
       selectedService = 'Zoho Solutions';
@@ -517,27 +494,16 @@ export async function handleLeadFlowMessage(params: {
       selectedService = 'Website / App Development';
     } else if (interactiveReplyId === 'srv_other' || lowerText.includes('other')) {
       selectedService = 'Other IT Services';
-    } else {
+    } else if (text.length > 0) {
       selectedService = text.slice(0, 50);
     }
 
-    console.log(`[leadFlowService] Service chosen "${selectedService}" for ${cleanPhone}`);
-
-    if (!session) {
-      session = {
-        phone: cleanPhone,
-        step: 'STEP_SERVICE',
-        leadId: currentLeadId,
-        updatedAt: Date.now(),
-      };
-    }
-    session.service = selectedService;
-    session.step = 'STEP_NAME';
-    await setFlowSession(cleanPhone, session);
+    console.log(`[leadFlowService] Step 2 -> Step 3: Service selected "${selectedService}" (${cleanPhone})`);
 
     if (currentLeadId) {
       await updateSalesforceLead(currentLeadId, {
         Description: `Selected Service: ${selectedService}`,
+        WhatZupp_Labels__c: 'LEAD_FLOW:STEP_NAME',
       });
     }
 
@@ -545,45 +511,20 @@ export async function handleLeadFlowMessage(params: {
     return true;
   }
 
-  // ─── 2. CHECK IF START KEYWORD (Start of Flow) ───
-  const isStartKeyword =
-    /^(hi|hello|hey|start|menu|get\s*started)\b/i.test(lowerText) ||
-    lowerText.includes('saw your ad') ||
-    lowerText.includes('welcome to pentacloud') ||
-    !!referralHeadline;
-
-  if (isStartKeyword) {
-    console.log(`[leadFlowService] Starting new Lead Flow for ${cleanPhone} (Trigger: "${text}")`);
-    await sendStep1Welcome(cleanPhone, referralHeadline);
-    return true;
-  }
-
-  // If no session exists and not a flow trigger, do not intercept
-  if (!session) {
-    return false;
-  }
-
-  // ─── 3. ACTIVE SESSION STATE MACHINE ───
-  if (lowerText === 'restart' || lowerText === 'reset') {
-    await sendStep1Welcome(cleanPhone, referralHeadline);
-    return true;
-  }
-
-  // --- STEP 3: Handle Name Capture ---
-  if (session.step === 'STEP_NAME') {
+  // ─── STEP 3 BRANCH: Capturing Customer Name ───
+  if (currentStep === 'STEP_NAME') {
     const rawName = text.trim();
     const parts = rawName.split(/\s+/);
     const firstName = parts[0] || 'Prospect';
     const lastName = parts.length > 1 ? parts.slice(1).join(' ') : 'Contact';
 
-    session.name = rawName;
-    session.step = 'STEP_COMPANY';
-    await setFlowSession(cleanPhone, session);
+    console.log(`[leadFlowService] Step 3 -> Step 4: Name captured "${rawName}" (${cleanPhone})`);
 
     if (currentLeadId) {
       await updateSalesforceLead(currentLeadId, {
         FirstName: firstName,
         LastName: lastName,
+        WhatZupp_Labels__c: 'LEAD_FLOW:STEP_COMPANY',
       });
     }
 
@@ -591,17 +532,16 @@ export async function handleLeadFlowMessage(params: {
     return true;
   }
 
-  // --- STEP 4: Handle Company Name Capture ---
-  if (session.step === 'STEP_COMPANY') {
+  // ─── STEP 4 BRANCH: Capturing Company Name ───
+  if (currentStep === 'STEP_COMPANY') {
     const company = text.trim() || 'Pentacloud Prospect';
 
-    session.company = company;
-    session.step = 'STEP_REQUIREMENT';
-    await setFlowSession(cleanPhone, session);
+    console.log(`[leadFlowService] Step 4 -> Step 5: Company captured "${company}" (${cleanPhone})`);
 
     if (currentLeadId) {
       await updateSalesforceLead(currentLeadId, {
         Company: company,
+        WhatZupp_Labels__c: 'LEAD_FLOW:STEP_REQUIREMENT',
       });
     }
 
@@ -609,23 +549,35 @@ export async function handleLeadFlowMessage(params: {
     return true;
   }
 
-  // --- STEP 5: Handle Requirement Capture ---
-  if (session.step === 'STEP_REQUIREMENT') {
+  // ─── STEP 5 BRANCH: Capturing Requirement ───
+  if (currentStep === 'STEP_REQUIREMENT') {
     const requirement = text.trim();
 
-    const fullDescription =
-      `Service Interested: ${session.service || 'General'}\n` +
-      `Requirement: ${requirement}\n` +
-      `Captured via Pentacloud Interactive WhatsApp Flow.`;
+    console.log(`[leadFlowService] Step 5 -> Step 6: Requirement captured (${cleanPhone})`);
 
     if (currentLeadId) {
+      const existingDesc = lead?.description ? `${lead.description}\n` : '';
       await updateSalesforceLead(currentLeadId, {
-        Description: fullDescription,
+        Description: `${existingDesc}Requirement: ${requirement}\nCaptured via Pentacloud Interactive WhatsApp Flow.`,
         Status: 'Working - Contacted',
+        WhatZupp_Labels__c: 'LEAD_FLOW:COMPLETED',
       });
     }
 
     await sendStep6Confirmation(cleanPhone, currentLeadId);
+    return true;
+  }
+
+  // ─── NEW USER / TRIGGER KEYWORD: Start Step 1 ───
+  const isStartKeyword =
+    /^(hi|hello|hey|start|menu|get\s*started)\b/i.test(lowerText) ||
+    lowerText.includes('saw your ad') ||
+    lowerText.includes('welcome to pentacloud') ||
+    !!referralHeadline;
+
+  if (isStartKeyword || !lead) {
+    console.log(`[leadFlowService] Starting new Lead Flow for ${cleanPhone} (Trigger: "${text}")`);
+    await sendStep1Welcome(cleanPhone, referralHeadline);
     return true;
   }
 

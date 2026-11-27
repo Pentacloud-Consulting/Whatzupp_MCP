@@ -15,11 +15,8 @@ if (!globalAny.flowStore) {
     tenantId: 'tenant-1',
     workspaceId: 'salescloud-ws-1',
     workspaceType: 'salescloud',
-    status: 'active',
-    keywords: [
-      { keyword: 'Pentacloud', matchType: 'contains' },
-      { keyword: 'salesforce', matchType: 'contains' },
-    ],
+    status: 'paused', // Paused to avoid conflict with interactive Click-to-WhatsApp Lead Flow
+    keywords: [],
     nodes: [
       {
         id: 'n1', type: 'TRIGGER_KEYWORD', label: 'Keyword: Pentacloud',
@@ -106,11 +103,8 @@ if (!globalAny.flowStore.has('flow-demo-1')) {
     tenantId: 'tenant-1',
     workspaceId: 'salescloud-ws-1',
     workspaceType: 'salescloud',
-    status: 'active',
-    keywords: [
-      { keyword: 'Pentacloud', matchType: 'contains' },
-      { keyword: 'salesforce', matchType: 'contains' },
-    ],
+    status: 'paused', // Paused to avoid conflict with interactive Click-to-WhatsApp Lead Flow
+    keywords: [],
     nodes: [
       {
         id: 'n1', type: 'TRIGGER_KEYWORD', label: 'Keyword: Pentacloud',
