@@ -86,7 +86,7 @@ export async function sendPentacloudBrochure(params: SendBrochureParams): Promis
     try {
       const formData = new FormData();
       formData.append('messaging_product', 'whatsapp');
-      const blob = new Blob([fileBuffer], { type: 'application/pdf' });
+      const blob = new Blob([new Uint8Array(fileBuffer)], { type: 'application/pdf' });
       formData.append('file', blob, fileName);
 
       const metaRes = await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/media`, {

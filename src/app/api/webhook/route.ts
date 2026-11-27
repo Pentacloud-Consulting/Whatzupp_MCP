@@ -119,6 +119,7 @@ export async function POST(request: Request) {
                 let mimeType: string | undefined = undefined;
                 let filename: string | undefined = undefined;
                 let caption: string | undefined = undefined;
+                let interactiveReplyId: string | undefined = undefined;
 
                 if (message.type === "text") {
                   contentText = (message.text as Record<string, string>)?.body || '';
@@ -126,8 +127,10 @@ export async function POST(request: Request) {
                   const interactive = message.interactive as any;
                   if (interactive?.type === 'button_reply') {
                     contentText = interactive.button_reply?.title || '';
+                    interactiveReplyId = interactive.button_reply?.id;
                   } else if (interactive?.type === 'list_reply') {
                     contentText = interactive.list_reply?.title || '';
+                    interactiveReplyId = interactive.list_reply?.id;
                   } else {
                     contentText = '[Interactive Response]';
                   }
@@ -629,6 +632,23 @@ export async function POST(request: Request) {
                         });
                       } catch (locationErr) {
                         console.error('[webhook] Auto-send location failed:', locationErr);
+                      }
+                    }
+
+                    // ---- Automated Click-to-WhatsApp Lead Generation Flow ----
+                    if (!isBrochure && !isLocation && !isStop) {
+                      try {
+                        const { handleLeadFlowMessage } = await import('@/lib/interactiveLeadFlowService');
+                        const referralHeadline = (message as any).referral?.headline || (message as any).referral?.body;
+                        await handleLeadFlowMessage({
+                          phone: normalizedPhone,
+                          contentText: contentText || '',
+                          interactiveReplyId,
+                          referralHeadline,
+                          leadId: contact?.salesforceObjectType === 'Lead' ? contact.salesforceRecordId : undefined,
+                        });
+                      } catch (leadFlowErr) {
+                        console.error('[webhook] Interactive Lead Flow failed:', leadFlowErr);
                       }
                     }
                   }

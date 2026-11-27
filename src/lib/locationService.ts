@@ -126,3 +126,4 @@ export async function sendPentacloudLocation(params: SendLocationParams): Promis
 
   return { success: true, messageId: actualWamid };
 }
+
