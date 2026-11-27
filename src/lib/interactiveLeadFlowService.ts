@@ -387,14 +387,31 @@ export async function sendStep5AskRequirement(phone: string, leadId?: string): P
 }
 
 /**
- * Step 6: Send Final Thank You Confirmation
+ * Step 6: Send Final Thank You Confirmation with Service-Specific Website Link
  */
-export async function sendStep6Confirmation(phone: string, leadId?: string): Promise<void> {
+export async function sendStep6Confirmation(phone: string, leadId?: string, selectedService?: string): Promise<void> {
   const cleanPhone = normalizePhoneNumber(phone);
+
+  let serviceLinkText = '';
+  const s = (selectedService || '').toLowerCase();
+
+  if (s.includes('salesforce')) {
+    serviceLinkText = '\n\nWhile our agent contacts you, you can have more details about our Salesforce services here:\n👉 https://pentacloud.me/services/salesforce';
+  } else if (s.includes('zoho')) {
+    serviceLinkText = '\n\nWhile our agent contacts you, you can have more details about our Zoho solutions here:\n👉 https://pentacloud.me/services/zoho';
+  } else if (s.includes('marketing')) {
+    serviceLinkText = '\n\nWhile our agent contacts you, you can have more details about our Digital Marketing services here:\n👉 https://pentacloud.me/services/digital-marketing';
+  } else if (s.includes('web') || s.includes('app')) {
+    serviceLinkText = '\n\nWhile our agent contacts you, you can have more details about our Web & App Development services here:\n👉 Web: https://pentacloud.me/services/web\n👉 App: https://pentacloud.me/services/app';
+  } else {
+    serviceLinkText = '\n\nWhile our agent contacts you, you can have more details about Pentacloud services here:\n👉 https://pentacloud.me/';
+  }
+
   const confirmText =
     "Thank you so much for sharing these details with us. 🙏\n\n" +
-    "We've noted your enquiry, and our team at Pentacloud Consulting will review your requirements and get in touch with you shortly.\n\n" +
-    "We appreciate your interest in Pentacloud and look forward to speaking with you!";
+    "We've noted your enquiry, and our team at Pentacloud Consulting will review your requirements and get in touch with you shortly." +
+    serviceLinkText +
+    "\n\nWe appreciate your interest in Pentacloud and look forward to speaking with you!";
 
   if (leadId) {
     await updateSalesforceLead(leadId, {
@@ -405,7 +422,7 @@ export async function sendStep6Confirmation(phone: string, leadId?: string): Pro
 
   const payload = {
     type: 'text',
-    text: { preview_url: false, body: confirmText },
+    text: { preview_url: true, body: confirmText },
   };
 
   await sendWhatsAppAndLogToSalesforce({ to: cleanPhone, payload, displayText: confirmText, leadId });
@@ -555,6 +572,12 @@ export async function handleLeadFlowMessage(params: {
 
     console.log(`[leadFlowService] Step 5 -> Step 6: Requirement captured (${cleanPhone})`);
 
+    let selectedService = '';
+    const match = (lead?.description || '').match(/Selected Service:\s*([^\n]+)/i);
+    if (match) {
+      selectedService = match[1].trim();
+    }
+
     if (currentLeadId) {
       const existingDesc = lead?.description ? `${lead.description}\n` : '';
       await updateSalesforceLead(currentLeadId, {
@@ -564,7 +587,7 @@ export async function handleLeadFlowMessage(params: {
       });
     }
 
-    await sendStep6Confirmation(cleanPhone, currentLeadId);
+    await sendStep6Confirmation(cleanPhone, currentLeadId, selectedService);
     return true;
   }
 
